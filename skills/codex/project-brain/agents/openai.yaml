@@ -1,0 +1,4 @@
+interface:
+  display_name: "Project Brain"
+  short_description: "Govern durable repository knowledge safely"
+  default_prompt: "Use $project-brain to initialize or maintain governed repository knowledge for this project."
