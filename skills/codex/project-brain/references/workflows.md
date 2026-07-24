@@ -27,6 +27,15 @@
 4. Record recommended state updates as reviewable proposals.
 5. Validate and secret-scan before writing.
 
+## Propose a learning
+
+1. Resolve and schema-validate the originating mission.
+2. Verify its starting and ending Git SHAs.
+3. Validate, canonicalize, deduplicate, and secret-scan evidence.
+4. Derive a stable proposal ID and lifecycle fingerprint.
+5. Preview with `--dry-run`; apply only in a clean worktree.
+6. Never evaluate, curate, confirm, or promote implicitly.
+
 ## Curate
 
 1. Load proposed, confirmed, stale, superseded, and Knowledge Evaluator reports.

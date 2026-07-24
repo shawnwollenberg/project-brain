@@ -1,0 +1,61 @@
+schema_version: 2.5.0
+artifact_type: context-pack
+objective: Harden, document, and independently review the standalone proposal command
+role: implementer
+repository_sha: 07e8d231add46dbe3e654ec6e11a79a1f59bdc8c
+selection:
+  strategy: deterministic-v2
+  sources:
+  - path: .project-brain/current-state.md
+    reason: explicit reference; objective terms in bounded content; repository knowledge;
+      repository operating context
+    bytes: 2025
+    estimated_tokens: 507
+    sha256: 83b53bf789662807326c94c0dd903e99338834a9d001d51329e4821da5057bc2
+  - path: src/project_brain/proposals.py
+    reason: explicit reference; objective terms in path; objective terms in bounded
+      content; component match
+    bytes: 6045
+    estimated_tokens: 1512
+    sha256: f91d55c7c4fb12baf6aeae3d507d8f8694af28ff1b170218d92b603bb5272cce
+  - path: src/project_brain/resources/schemas/proposed-learning.schema.json
+    reason: explicit reference; objective terms in bounded content
+    bytes: 1737
+    estimated_tokens: 435
+    sha256: fb700417932cf4e4956e44c000fccb450c5677a0068acd897fbbb28ac925daa8
+  - path: src/project_brain/core.py
+    reason: explicit reference; objective terms in bounded content
+    bytes: 60065
+    estimated_tokens: 15017
+    sha256: 536e18b2e16f175347a5800846c4dc378ab7fd68a3371b82a337f3395391095f
+  - path: tests/test_proposals.py
+    reason: expected file; objective terms in path; objective terms in bounded content;
+      component match
+    bytes: 6043
+    estimated_tokens: 1511
+    sha256: fdc7ff1494429fbf1ee3a62b0b64a7ce92040d4c574b3a856f86d10508d42100
+  - path: README.md
+    reason: expected file; objective terms in bounded content
+    bytes: 6092
+    estimated_tokens: 1523
+    sha256: fa46257aa9a14538e1fb6c080d212343bc3919001279f3e22e520a507fbd1c62
+  - path: src/project_brain/api.py
+    reason: expected file; objective terms in bounded content
+    bytes: 4533
+    estimated_tokens: 1134
+    sha256: b838324d2fa673ec8d92f61e1742959405f4de4d87fa78c2284464f7de589138
+  - path: .project-brain/project-profile.yaml
+    reason: objective terms in bounded content; repository knowledge; repository operating
+      context
+    bytes: 1186
+    estimated_tokens: 297
+    sha256: ec7d11f262607b460dc7ff910cc1b6fd29980b23b33da3109992fe174799d509
+  - path: AGENTS.md
+    reason: objective terms in bounded content; repository operating context
+    bytes: 947
+    estimated_tokens: 237
+    sha256: 2ebd22a3fb7a8ed0b5b824143d4cf54391c4008735ee8538ade03f684b4884f0
+  omitted_sources: []
+  total_bytes: 88673
+  estimated_tokens: 22169
+created_at: '2026-07-24T14:24:16-04:00'

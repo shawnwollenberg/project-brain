@@ -37,6 +37,7 @@ Use `--format json` on scriptable commands for structured JSON. The default is r
 - `profile`: inspect language, framework, commands, and stable repository identity.
 - `prepare-context` (`context`): select deterministic, budgeted task context.
 - `close-mission` (`close`): record outcomes, evidence, and optional learning proposals.
+- `propose-learning`: create a stable, mission-backed proposal without evaluating or promoting it.
 - `evaluate`: inspect evidence, novelty, duplicates, conflicts, confidence, and encoding.
 - `curate`: recommend human-gated lifecycle changes without applying them.
 - `validate`: check YAML, schemas, evidence, SHAs, lifecycle rules, and likely secrets.
@@ -52,6 +53,8 @@ preview = initialize(".", dry_run=True)
 context = prepare_context(".", "Fix scheduler flakiness", "implementer")
 assert validate(".").exit_code == 0
 ```
+
+The dedicated proposal workflow is documented in [Propose learning](docs/workflows/propose-learning.md), with its matching [Python library API](docs/integrations/library-api.md).
 
 ## Knowledge lifecycle and approval
 

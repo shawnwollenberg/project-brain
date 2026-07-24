@@ -25,6 +25,7 @@ This skill is adapter version 0.3.0 for Project Brain package 0.3.x and schema 2
 - Initialize or audit a repository: use `init`.
 - Prepare task-specific context: use `context`.
 - Close work and propose learnings: use `close`.
+- Create a mission-backed proposal independently of closure: use `propose-learning`.
 - Evaluate proposed learning without promoting it: use `evaluate`.
 - Review proposed knowledge: use `curate`.
 - Validate artifacts or detect secrets: use `validate`.
