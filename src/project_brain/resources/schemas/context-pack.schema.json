@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "context-pack.schema.json",
+  "type": "object",
+  "required": ["schema_version", "artifact_type", "objective", "role", "repository_sha", "selection", "created_at"],
+  "properties": {
+    "schema_version": {"type": "string", "pattern": "^2\\."},
+    "artifact_type": {"const": "context-pack"},
+    "objective": {"type": "string", "minLength": 1},
+    "role": {"type": "string", "minLength": 1},
+    "repository_sha": {"type": "string", "minLength": 7},
+    "selection": {
+      "type": "object",
+      "required": ["strategy", "sources", "total_bytes", "estimated_tokens"],
+      "properties": {
+        "strategy": {"const": "deterministic-v2"},
+        "sources": {"type": "array", "items": {"type": "object", "required": ["path", "reason", "bytes", "estimated_tokens", "sha256"]}},
+        "omitted_sources": {"type": "array", "items": {"type": "object", "required": ["path", "reason"]}},
+        "total_bytes": {"type": "integer", "minimum": 0},
+        "estimated_tokens": {"type": "integer", "minimum": 0}
+      }
+    },
+    "created_at": {"type": "string"}
+  }
+}
