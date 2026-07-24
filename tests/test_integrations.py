@@ -63,6 +63,8 @@ class ConsumerIntegrationTests(unittest.TestCase):
         self.assertEqual(["1.0"], report["consumer_contract_versions"])
         self.assertFalse(report["feature_flags"]["automatic_promotion"])
         self.assertIn("prepare_context", report["operations"])
+        self.assertTrue(report["operations"]["prepare_context"]["supports_read_only_preview"])
+        self.assertFalse(report["operations"]["prepare_context"]["preview_requires_clean_worktree"])
         compatible = consumer_operation("detect_repository", self.repo, contract_version="1.0")
         unsupported = consumer_operation("detect_repository", self.repo, contract_version="2.0")
         self.assertEqual("succeeded", compatible["status"])

@@ -40,6 +40,12 @@ OPERATIONS: dict[str, dict[str, Any]] = {
     "get_health": _op("read-only", True, False, False, False),
     "diagnostics": _op("read-only", True, False, False, False),
 }
+OPERATIONS["prepare_context"].update({
+    "supports_read_only_preview": True,
+    "preview_requires_clean_worktree": False,
+    "preview_creates_git_visible_artifact": False,
+    "write_request_field": "write",
+})
 
 
 def compatibility(requested: str) -> str:
