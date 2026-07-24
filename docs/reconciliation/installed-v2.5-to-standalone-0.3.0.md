@@ -94,3 +94,19 @@ Both implementations emit novelty, duplicate matches, evidence quality, contradi
 ## Port decision
 
 All seven missing installed scenarios and their supporting trust boundaries are appropriate and will be ported into the standalone core. Standalone confidence metadata will be retained as a compatible extension. The installed engine will then be removed and replaced with a thin adapter installed from this repository. No installed-only implementation will remain authoritative.
+
+## Final mapping
+
+All 36 installed scenarios are now represented by `tests/regression/test_legacy.py`. The seven baseline gaps map as follows:
+
+| Installed-skill scenario | Standalone test | Final status |
+|---|---|---|
+| modal/contraction/punctuation/scope normalization | `test_contradiction_normalizes_modals_contractions_punctuation_and_scope` | Ported |
+| evaluator-to-curator weak disposition | `test_curator_honors_evaluator_weak_evidence_disposition` | Ported |
+| stale proposal fingerprint | `test_curator_rejects_stale_evaluations_after_proposal_changes` | Ported and extended for status/source mission |
+| conservative multiple-report blocker | `test_curator_preserves_blocker_across_multiple_current_evaluations` | Ported |
+| evidence dedupe and kind laundering | `test_evidence_quality_deduplicates_references_and_rejects_kind_laundering` | Ported |
+| unsupported knowledge schema | `test_evaluator_rejects_unsupported_knowledge_schema` | Ported |
+| noncanonical stored experience ID | `test_evaluator_rejects_noncanonical_stored_experience_id` | Ported |
+
+Additional standalone coverage verifies dedicated proposal dry-run/create/no-op behavior, structured input, invalid mission SHAs, evidence paths and kinds, JSON/API parity, self-authored evidence rejection, duplicate confidence inflation prevention, byte-identical evaluation, and numeric confidence compatibility.

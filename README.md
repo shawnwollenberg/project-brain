@@ -99,7 +99,7 @@ python3 scripts/install_skill.py validate
 python3 scripts/install_skill.py uninstall
 ```
 
-Set `--target` to validate a disposable installation. The installer refuses to overwrite a different installation unless `--force` is explicitly provided, reports version 0.2.0, and writes an install manifest for safe removal.
+Set `--target` to validate a disposable installation. The installer refuses to overwrite a different installation unless `--force` is explicitly provided, records package/adapter/schema versions, source commit, and install time, and writes a manifest for safe removal.
 
 ## Tests
 
@@ -126,4 +126,4 @@ Mission Control, OfficeAnywhere, Aegis, and other applications should consume Pr
 - `tests/`: unit, integration, fixture, and inherited regression coverage
 - `docs/`: architecture, contracts, security, workflows, and decisions
 
-Licensed under Apache-2.0. Version 0.2.0 imports the validated Project Brain v2.5 artifact behavior into a standalone pre-1.0 package.
+Licensed under Apache-2.0. Version 0.3.0 makes the standalone package authoritative while retaining validated Project Brain v2.5 artifact behavior.

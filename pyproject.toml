@@ -40,5 +40,5 @@ testpaths = ["tests"]
 addopts = "-q"
 
 [tool.ruff]
-target-version = "py39"
+target-version = "py38"
 line-length = 120

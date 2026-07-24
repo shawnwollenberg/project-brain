@@ -2,6 +2,34 @@
 
 This project follows Semantic Versioning. Artifact schema versions are independent from the package version.
 
+## [0.3.0] - 2026-07-24
+
+### Added
+
+- Dedicated mission-backed `propose-learning` CLI and Python API with dry-run, structured input, stable identity, proposal fingerprinting, secret/evidence validation, and duplicate no-op behavior.
+- Proposal fingerprint invalidation across claim, scope, evidence, status, and source mission.
+- Canonical scope, contradiction, evidence, and experience-event normalization.
+- Evaluator-to-curator disposition propagation with conservative blocker preservation.
+- Package/skill/schema drift diagnostics and a thin Codex skill adapter.
+- Self-hosted `.project-brain/` repository knowledge and lifecycle evidence.
+
+### Changed
+
+- Made the standalone package the sole authoritative implementation.
+- Unified all 36 installed reference scenarios with standalone architecture, proposal, and additional trust-boundary tests.
+- Restricted evidence kinds and rejected duplicated, laundered, unsafe, or self-authored proposal evidence.
+
+### Compatibility
+
+- Package and skill adapter version 0.3.0 continue generating schema 2.5.0.
+- Numeric confidence in older confirmed lessons remains valid.
+- Migration remains proposal-only; changed proposals require reevaluation.
+
+### Security
+
+- Canonical experience IDs prevent duplicate confidence inflation.
+- Current proposal fingerprints are required before curation can recommend promotion or encoding.
+
 ## [0.2.0] - 2026-07-24
 
 ### Added
