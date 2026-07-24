@@ -58,8 +58,8 @@ def profile(repo: str | Path = ".", *, repository_id: str | None = None) -> dict
 
 def prepare_context(repo: str | Path, objective: str, role: str, **options: Any) -> CommandResult:
     args = ["context", "--repo", str(repo), "--objective", objective, "--role", role]
-    scalar = {"mission_type": "--mission-type", "component": "--component", "max_files": "--max-files", "max_bytes": "--max-bytes", "base_sha": "--base-sha", "output": "--output"}
-    repeated = {"tag": "--tag", "expected_file": "--expected-file", "reference": "--reference"}
+    scalar = {"mission_type": "--mission-type", "component": "--component", "revision_count": "--revision-count", "max_files": "--max-files", "max_bytes": "--max-bytes", "base_sha": "--base-sha", "mission_id": "--mission-id", "execution_id": "--execution-id", "output": "--output"}
+    repeated = {"tag": "--tag", "expected_file": "--expected-file", "reference": "--reference", "missing_context": "--missing-context"}
     for key, flag in scalar.items():
         if options.get(key) is not None:
             args.extend([flag, str(options[key])])
@@ -121,6 +121,24 @@ def migrate(repo: str | Path = ".", *, dry_run: bool = True) -> CommandResult:
 
 def doctor() -> CommandResult:
     return invoke(["doctor"])
+
+
+def capabilities() -> dict[str, Any]:
+    from .integrations import capability_report
+
+    return capability_report()
+
+
+def consumer_operation(
+    operation: str,
+    repo: str | Path = ".",
+    request: dict[str, Any] | None = None,
+    *,
+    contract_version: str = "1.0",
+) -> dict[str, Any]:
+    from .integrations import execute
+
+    return execute(operation, repo, request, contract_version=contract_version)
 
 
 def _simple(command: str, repo: str | Path, options: dict[str, Any], repeated: set[str] | None = None) -> CommandResult:

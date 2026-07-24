@@ -47,7 +47,7 @@ class StandaloneArchitectureTests(unittest.TestCase):
 
     def test_packaged_resources_and_initialization(self) -> None:
         schemas = SRC / "project_brain/resources/schemas"
-        self.assertEqual(10, len(list(schemas.glob("*.schema.json"))))
+        self.assertEqual(13, len(list(schemas.glob("*.schema.json"))))
         with tempfile.TemporaryDirectory() as temporary:
             repo = Path(temporary) / "repo"
             make_repo(repo)

@@ -12,8 +12,8 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-PACKAGE_VERSION = "0.3.0"
-SKILL_ADAPTER_VERSION = "0.3.0"
+PACKAGE_VERSION = "0.4.0"
+SKILL_ADAPTER_VERSION = "0.4.0"
 SUPPORTED_SCHEMAS = ["2.5.0"]
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "skills" / "codex" / "project-brain"

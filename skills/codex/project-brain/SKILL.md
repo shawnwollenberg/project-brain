@@ -7,7 +7,7 @@ description: Initialize, retrieve, close, evaluate, curate, and validate a provi
 
 Create durable repository knowledge without turning generated claims into truth. Keep Git as the source of truth, Markdown readable by humans, YAML machine-readable, and every promoted lesson reviewable and evidence-backed.
 
-This skill is adapter version 0.3.0 for Project Brain package 0.3.x and schema 2.5.x. It contains no Project Brain engine. Invoke the installed `project-brain` command only.
+This skill is adapter version 0.4.0 for Project Brain package 0.4.x and schema 2.5.x. It contains no Project Brain engine. Invoke the installed `project-brain` command only.
 
 ## Operating rules
 

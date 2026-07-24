@@ -36,8 +36,8 @@ except ImportError as exc:
     DEPENDENCY_ERROR = exc
 
 VERSION = "2.5.0"
-PACKAGE_VERSION = "0.3.0"
-SKILL_ADAPTER_VERSION = "0.3.0"
+PACKAGE_VERSION = "0.4.0"
+SKILL_ADAPTER_VERSION = "0.4.0"
 PACKAGE_ROOT = Path(__file__).resolve().parent
 ASSET_ROOT = PACKAGE_ROOT / "resources"
 SECRET_PATTERNS = [
@@ -415,9 +415,13 @@ def context_command(args: argparse.Namespace) -> int:
     repo = repo_root(args.repo)
     terms = set(re.findall(r"[a-z0-9_-]{3,}", f"{args.objective} {args.role} {args.mission_type or ''} {args.component or ''} {' '.join(args.tag)}".lower()))
     explicit = {str(Path(p)) for p in args.reference}
+    missing_context = {str(Path(p)) for p in args.missing_context}
+    required_sources = explicit | missing_context
     expected = {str(Path(p)) for p in args.expected_file}
-    available = {str(path.relative_to(repo)) for path in candidate_files(repo)}
-    missing_explicit = sorted(explicit - available)
+    candidates = candidate_files(repo)
+    available = {str(path.relative_to(repo)) for path in candidates}
+    candidate_bytes = sum(path.stat().st_size for path in candidates)
+    missing_explicit = sorted(required_sources - available)
     if missing_explicit:
         raise BrainError(f"Explicit context source is missing or unsupported: {', '.join(missing_explicit)}")
     expected_dirs = {
@@ -426,13 +430,15 @@ def context_command(args: argparse.Namespace) -> int:
     }
     changed = set(run(["git", "diff", "--name-only", f"{args.base_sha}...HEAD"], repo, check=False).splitlines()) if args.base_sha else set()
     ranked = []
-    for path in candidate_files(repo):
+    for path in candidates:
         rel = str(path.relative_to(repo))
         if scan_secrets(rel):
             continue
         score, reasons = 0, []
         if rel in explicit:
             score += 1000; reasons.append("explicit reference")
+        if rel in missing_context:
+            score += 950; reasons.append("added after missing-context discovery")
         if rel in expected:
             score += 700; reasons.append("expected file")
         if any(rel.startswith(f"{directory}/") for directory in expected_dirs):
@@ -472,15 +478,54 @@ def context_command(args: argparse.Namespace) -> int:
             "path": rel, "reason": "; ".join(reasons), "bytes": size,
             "estimated_tokens": max(1, (size + 3) // 4),
             "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+            "selection_origin": (
+                "explicitly_requested" if rel in explicit
+                else "added_after_missing_context" if rel in missing_context
+                else "automatic"
+            ),
         })
         total += size
-    omitted_explicit = sorted(explicit - {item["path"] for item in selected})
+    selected_paths = {item["path"] for item in selected}
+    omitted_explicit = sorted(required_sources - selected_paths)
     if omitted_explicit:
         raise BrainError(f"Explicit context source could not fit the configured budget: {', '.join(omitted_explicit)}")
+    initial_sources = [item for item in selected if item["path"] not in missing_context]
+    initial_bytes = sum(item["bytes"] for item in initial_sources)
+    revision_count = args.revision_count if args.revision_count is not None else (1 if missing_context else 0)
+    context_quality = {
+        "completeness_status": "revised" if missing_context else "complete",
+        "candidate_files": len(candidates),
+        "candidate_bytes": candidate_bytes,
+        "initially_selected_files": len(initial_sources),
+        "initial_selected_bytes": initial_bytes,
+        "final_selected_files": len(selected),
+        "final_selected_bytes": total,
+        "actual_bytes": total,
+        "reduction_percentage": round((1 - total / candidate_bytes) * 100, 2) if candidate_bytes else 0.0,
+        "explicitly_requested_sources": sorted(explicit),
+        "automatically_selected_sources": sorted(
+            item["path"] for item in selected if item["selection_origin"] == "automatic"
+        ),
+        "missing_context_detected": sorted(missing_context),
+        "sources_added_after_missing_context_discovery": sorted(missing_context & selected_paths),
+        "sources_rejected_for_budget": sorted(item["path"] for item in omitted),
+        "sources_excluded_as_unrelated": len(available - {item[1] for item in ranked}),
+        "revision_count": revision_count,
+        "final_explicit_sources_complete": not bool(required_sources - selected_paths),
+        "relevant_source_precision": None,
+        "optimality_claimed": False,
+    }
     pack = {
         "schema_version": VERSION, "artifact_type": "context-pack",
         "objective": args.objective, "role": args.role, "repository_sha": git_sha(repo),
         "selection": {"strategy": "deterministic-v2", "sources": selected, "omitted_sources": omitted, "total_bytes": total, "estimated_tokens": (total + 3) // 4},
+        "context_quality": context_quality,
+        "consumer_binding": {
+            "contract_version": "1.0",
+            "mission_id": args.mission_id,
+            "execution_id": args.execution_id,
+            "starting_sha": git_sha(repo),
+        } if args.mission_id or args.execution_id else None,
         "created_at": git_commit_time(repo),
     }
     validate_data(pack, ASSET_ROOT / "schemas" / "context-pack.schema.json")
@@ -1161,8 +1206,9 @@ def parser() -> argparse.ArgumentParser:
     context = sub.add_parser("context")
     context.add_argument("--repo", default="."); context.add_argument("--objective", required=True); context.add_argument("--role", required=True)
     context.add_argument("--mission-type"); context.add_argument("--component"); context.add_argument("--tag", action="append", default=[]); context.add_argument("--expected-file", action="append", default=[])
-    context.add_argument("--reference", action="append", default=[]); context.add_argument("--max-files", type=int, default=12); context.add_argument("--max-bytes", type=int, default=120000)
-    context.add_argument("--base-sha"); context.add_argument("--output"); context.set_defaults(func=context_command)
+    context.add_argument("--reference", action="append", default=[]); context.add_argument("--missing-context", action="append", default=[])
+    context.add_argument("--revision-count", type=int); context.add_argument("--max-files", type=int, default=12); context.add_argument("--max-bytes", type=int, default=120000)
+    context.add_argument("--base-sha"); context.add_argument("--mission-id"); context.add_argument("--execution-id"); context.add_argument("--output"); context.set_defaults(func=context_command)
     close = sub.add_parser("close")
     close.add_argument("--repo", default="."); close.add_argument("--objective", required=True); close.add_argument("--role", required=True)
     close.add_argument("--status", choices=["completed", "failed", "blocked", "cancelled"], required=True); close.add_argument("--start-sha", required=True)

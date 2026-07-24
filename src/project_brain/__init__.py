@@ -3,6 +3,8 @@
 from .api import (
     CommandResult,
     close_mission,
+    capabilities,
+    consumer_operation,
     curate,
     doctor,
     evaluate,
@@ -19,6 +21,8 @@ __all__ = [
     "BrainError",
     "CommandResult",
     "close_mission",
+    "capabilities",
+    "consumer_operation",
     "curate",
     "doctor",
     "evaluate",
@@ -29,4 +33,4 @@ __all__ = [
     "propose_learning",
     "validate",
 ]
-__version__ = "0.3.0"
+__version__ = "0.4.0"
