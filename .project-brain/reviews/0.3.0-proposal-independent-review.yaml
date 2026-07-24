@@ -1,0 +1,89 @@
+schema_version: "2.5.0"
+artifact_type: review-findings
+review_id: 0.3.0-proposal-independent-review
+mission_id: 2026-07-24-harden-document-and-independently-review-the-standalone-proposal
+repository_sha: 46d5eb0e330b9b4e9bbeb7ded3726d3935a8b386
+reviewer: separate-context-independent-reviewer
+review_scope: Standalone proposal trust boundaries, determinism, API/CLI parity, and regression coverage
+findings:
+  - finding_id: proposal-review-001
+    severity: high
+    category: path-containment
+    file_location: src/project_brain/proposals.py
+    claim: Unvalidated mission IDs and fallback symlinks could escape the missions directory.
+    evidence:
+      - kind: file
+        reference: src/project_brain/proposals.py
+      - kind: test
+        reference: tests/test_proposals.py
+    required_resolution_or_acceptance_rationale: Resolve every mission candidate and require its parent to be the canonical missions directory.
+    status: resolved
+    disposition: Mission IDs reject traversal and both direct and fallback paths enforce resolved containment.
+  - finding_id: proposal-review-002
+    severity: high
+    category: artifact-integrity
+    file_location: src/project_brain/proposals.py
+    claim: Existing proposal no-op handling did not fully validate safety, schema, fingerprint, and non-identity fields.
+    evidence:
+      - kind: file
+        reference: src/project_brain/proposals.py
+      - kind: test
+        reference: tests/test_proposals.py
+    required_resolution_or_acceptance_rationale: Revalidate the full stored artifact before returning no-op.
+    status: resolved
+    disposition: Existing artifacts are secret-scanned, schema-validated, fingerprint-checked, and compared exactly except for preserved observation date.
+  - finding_id: proposal-review-003
+    severity: high
+    category: evidence-independence
+    file_location: src/project_brain/proposals.py
+    claim: Lexical evidence checks allowed a symlink alias to hide self-authored proposal evidence.
+    evidence:
+      - kind: file
+        reference: src/project_brain/proposals.py
+      - kind: test
+        reference: tests/test_proposals.py
+    required_resolution_or_acceptance_rationale: Canonicalize resolved evidence paths before independence and kind checks.
+    status: resolved
+    disposition: Evidence paths are resolved repository-relative paths before self-authored and kind/artifact validation.
+  - finding_id: proposal-review-004
+    severity: medium
+    category: structured-input
+    file_location: src/project_brain/proposals.py
+    claim: Scalar structured scope could be canonicalized character-by-character.
+    evidence:
+      - kind: test
+        reference: tests/test_proposals.py
+    required_resolution_or_acceptance_rationale: Require scope and evidence collection types explicitly.
+    status: resolved
+    disposition: Structured input must be a mapping; scope must be a string list and evidence must be a list.
+  - finding_id: proposal-review-005
+    severity: medium
+    category: precedence
+    file_location: src/project_brain/proposals.py
+    claim: Truthiness-based fallback could replace explicitly supplied empty values.
+    evidence:
+      - kind: file
+        reference: src/project_brain/api.py
+      - kind: test
+        reference: tests/test_proposals.py
+    required_resolution_or_acceptance_rationale: Use presence-based precedence and preserve explicit empty collections through the library API.
+    status: resolved
+    disposition: None-based precedence and direct domain API invocation preserve explicit values for validation.
+  - finding_id: proposal-review-006
+    severity: high
+    category: determinism
+    file_location: src/project_brain/proposals.py
+    claim: Cross-day repeated proposals could fail exact no-op comparison because observed_at was regenerated.
+    evidence:
+      - kind: test
+        reference: tests/test_proposals.py
+    required_resolution_or_acceptance_rationale: Preserve the original observation date for an identical existing proposal.
+    status: resolved
+    disposition: No-op comparison adopts the validated existing observed_at and a cross-day regression test passes.
+reviewed_at: "2026-07-24T18:30:00+00:00"
+summary:
+  repair_cycles: 2
+  blocking_findings_initial: 3
+  blocking_findings_after_first_repair: 2
+  unresolved_blocking_findings: 0
+  knowledge_approval_performed: false
