@@ -1,0 +1,1 @@
+"""Inherited behavior regression tests."""
