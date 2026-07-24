@@ -38,11 +38,23 @@ class StandaloneArchitectureTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             repo = Path(temporary) / "repo"
             make_repo(repo)
-            library = profile(repo)
-            command = run(
-                sys.executable, str(ROOT / "scripts/project_brain.py"),
-                "profile", "--repo", str(repo), "--format", "json",
-            )
+            stable_timestamp = "2026-07-24T00:00:00+00:00"
+            previous = os.environ.get("PROJECT_BRAIN_TIMESTAMP")
+            os.environ["PROJECT_BRAIN_TIMESTAMP"] = stable_timestamp
+            ENV["PROJECT_BRAIN_TIMESTAMP"] = stable_timestamp
+            try:
+                library = profile(repo)
+                command = run(
+                    sys.executable, str(ROOT / "scripts/project_brain.py"),
+                    "profile", "--repo", str(repo), "--format", "json",
+                )
+            finally:
+                if previous is None:
+                    os.environ.pop("PROJECT_BRAIN_TIMESTAMP", None)
+                    ENV.pop("PROJECT_BRAIN_TIMESTAMP", None)
+                else:
+                    os.environ["PROJECT_BRAIN_TIMESTAMP"] = previous
+                    ENV["PROJECT_BRAIN_TIMESTAMP"] = previous
             self.assertEqual(library, json.loads(command.stdout))
 
     def test_packaged_resources_and_initialization(self) -> None:
