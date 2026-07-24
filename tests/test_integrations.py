@@ -75,7 +75,7 @@ class ConsumerIntegrationTests(unittest.TestCase):
 
     def test_initialization_is_an_explicit_structured_consumer_write(self) -> None:
         result = consumer_operation("initialize_repository", self.repo)
-        self.assertEqual("succeeded", result["status"])
+        self.assertEqual("succeeded", result["status"], result)
         self.assertTrue(result["human_approval_required"])
         self.assertTrue(result["repository_files_changed"])
         self.assertTrue((self.repo / ".project-brain/project-profile.yaml").is_file())
@@ -119,6 +119,76 @@ class ConsumerIntegrationTests(unittest.TestCase):
         self.assertEqual("mission-1", binding["mission_id"])
         self.assertEqual("execution-1", binding["execution_id"])
         self.validate_envelope(result)
+
+    def test_context_requires_explicit_write_and_evaluation_output_stays_in_repository(self) -> None:
+        self.initialize()
+        preview = consumer_operation(
+            "prepare_context",
+            self.repo,
+            {"objective": "Inspect safely", "role": "reviewer"},
+        )
+        self.assertEqual("succeeded", preview["status"])
+        self.assertFalse(preview["repository_files_changed"])
+        self.assertEqual([], preview["artifacts"])
+        escaped = consumer_operation(
+            "evaluate_learning",
+            self.repo,
+            {"output": "../escaped-evaluation.yaml"},
+        )
+        self.assertEqual("failed", escaped["status"])
+        self.assertFalse((self.repo.parent / "escaped-evaluation.yaml").exists())
+
+    def test_closure_can_bind_an_isolated_review_commit(self) -> None:
+        start_sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=self.repo, text=True).strip()
+        (self.repo / "reviewed.txt").write_text("reviewed\n", encoding="utf-8")
+        subprocess.run(["git", "add", "reviewed.txt"], cwd=self.repo, check=True)
+        subprocess.run(["git", "commit", "-m", "reviewed change"], cwd=self.repo, check=True, capture_output=True)
+        end_sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=self.repo, text=True).strip()
+        subprocess.run(["git", "checkout", "--detach", start_sha], cwd=self.repo, check=True, capture_output=True)
+        result = consumer_operation(
+            "record_closure",
+            self.repo,
+            {
+                "objective": "Bind reviewed change",
+                "role": "implementer",
+                "status": "completed",
+                "start_sha": start_sha,
+                "end_sha": end_sha,
+                "acceptance_outcome": "Reviewed change completed",
+                "acceptance_criterion": ["Reviewed commit exists"],
+                "check": ["review=passed"],
+                "evidence": ["README.md"],
+            },
+        )
+        self.assertEqual("succeeded", result["status"], result)
+        self.assertEqual(end_sha, result["data"]["result"]["end_sha"])
+
+    def test_closure_rejects_an_unrelated_ending_commit(self) -> None:
+        start_sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=self.repo, text=True).strip()
+        subprocess.run(["git", "checkout", "--orphan", "unrelated"], cwd=self.repo, check=True, capture_output=True)
+        subprocess.run(["git", "rm", "-rf", "."], cwd=self.repo, check=True, capture_output=True)
+        (self.repo / "unrelated.txt").write_text("unrelated\n", encoding="utf-8")
+        subprocess.run(["git", "add", "unrelated.txt"], cwd=self.repo, check=True)
+        subprocess.run(["git", "commit", "-m", "unrelated"], cwd=self.repo, check=True, capture_output=True)
+        end_sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=self.repo, text=True).strip()
+        result = consumer_operation(
+            "record_closure",
+            self.repo,
+            {
+                "objective": "Reject unrelated history",
+                "role": "reviewer",
+                "status": "completed",
+                "start_sha": start_sha,
+                "end_sha": end_sha,
+                "acceptance_outcome": "Must fail",
+                "acceptance_criterion": ["History is related"],
+                "check": ["ancestry=failed"],
+                "evidence": ["unrelated.txt"],
+            },
+        )
+        self.assertEqual("failed", result["status"], result)
+        self.assertIn("ancestor", result["blockers"][0])
+
 
     def test_health_summary_uses_inspectable_counts_without_score(self) -> None:
         self.initialize()

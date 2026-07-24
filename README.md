@@ -87,6 +87,12 @@ Agent
 
 The Python package contains the provider-neutral core and CLI. Packaged resources under `src/project_brain/resources/` are authoritative for new releases; initialized repositories receive copies for reproducible historical validation. Provider adapters contain guidance only and do not duplicate repository knowledge.
 
+Consumer contract 1.0 exposes explicit, approval-gated `initialize_repository`. `prepare_context` writes only when
+the request includes `write: true`, and requested evaluation outputs are contained within the repository and returned
+with artifact evidence. Consumers must never initialize or promote knowledge automatically.
+Mission closure may bind an explicit `end_sha` that already resolves in the repository, allowing an isolated reviewed
+worktree commit to be recorded without checking it out in the registered checkout.
+
 See [architecture](docs/architecture/overview.md), [schema compatibility](docs/schemas/versioning.md), [security](docs/security/model.md), and the [ADRs](docs/adr/).
 
 ## Codex skill

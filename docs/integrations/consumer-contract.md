@@ -9,13 +9,14 @@ Git-versioned Project Brain artifacts remain authoritative. A consumer may index
 | Operation | Classification | Automatic | Clean worktree | Git-visible artifact | Human approval |
 |---|---|---:|---:|---:|---:|
 | `detect_repository` | Read-only | Yes | No | No | No |
+| `initialize_repository` | Repository-writing | No | Yes | Yes | Required |
 | `validate_repository` | Read-only | Yes | No | No | No |
 | `get_summary` | Read-only | Yes | No | No | No |
-| `prepare_context` | Read-only preview or repository-writing finalization | Yes | For write | Optional | No |
+| `prepare_context` | Read-only preview or repository-writing finalization | Yes | For explicit `write: true` | Optional | No |
 | `read_context` | Read-only | Yes | No | No | No |
 | `record_closure` | Repository-writing | Yes after verified input | Yes | Yes | No |
 | `propose_learning` | Proposal-producing | Yes | Yes | Yes | Required for later promotion |
-| `evaluate_learning` | Proposal-producing recommendation | Yes | No unless output is written | Optional | Required |
+| `evaluate_learning` | Proposal-producing recommendation | Yes | No unless a repository-relative output is written | Optional | Required |
 | `get_curation` | Read-only recommendation | Yes | No | No | Required |
 | `list_knowledge` | Read-only | Yes | No | No | No |
 | `get_health` | Read-only | Yes | No | No | No |
@@ -85,3 +86,9 @@ Consumers discover rather than infer these rules. Repository HEAD must be reboun
 Consumers invoke only allowlisted operations against an explicit registered checkout. They must use a known executable path, fixed working directory, argument arrays without shell interpolation, bounded timeout/output, environment allowlisting, local-only execution where applicable, captured stdout/stderr, envelope schema validation, and audit events. User-supplied arbitrary Project Brain commands are prohibited.
 
 No operation grants knowledge-promotion authority.
+
+Initialization is never implicit: consumers must request `initialize_repository` with an approved repository-write
+decision. Context preparation is read-only unless the request explicitly contains `write: true`. Evaluation output,
+when requested, must resolve beneath the repository and is returned as a checksummed artifact descriptor.
+Mission Control may bind `context_checksum` as governed closure metadata; the consumer verifies transport binding
+outside the Project Brain CLI arguments and does not persist that orchestration-only field in the mission artifact.

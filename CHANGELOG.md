@@ -2,6 +2,22 @@
 
 This project follows Semantic Versioning. Artifact schema versions are independent from the package version.
 
+## [Unreleased]
+
+### Added
+
+- Explicit approval-gated `initialize_repository` support in consumer contract 1.0.
+- Repository-contained, checksummed evaluation-output artifact descriptors.
+- Explicit mission-closure `end_sha` binding for reviewed commits created in isolated worktrees.
+
+### Changed
+
+- Final context persistence now requires an explicit `write: true`; omitted write intent remains read-only.
+
+### Security
+
+- Initialization remains opt-in, evaluation outputs cannot escape the repository, and no operation promotes knowledge.
+
 ## [0.3.0] - 2026-07-24
 
 ### Added

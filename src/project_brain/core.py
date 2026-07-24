@@ -553,10 +553,20 @@ def close_command(args: argparse.Namespace) -> int:
     for item in args.check:
         command, sep, result = item.rpartition("=")
         checks.append({"command": command if sep else item, "result": result if sep else "recorded"})
+    end_sha = require_commit(repo, args.end_sha or "HEAD", "Ending SHA")
+    ancestry = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", start_sha, end_sha],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if ancestry.returncode != 0:
+        raise BrainError("Mission starting SHA must be an ancestor of the ending SHA.")
     result = {
         "schema_version": VERSION, "artifact_type": "mission-result", "id": mission_id,
         "objective": args.objective, "role": args.role, "agent": args.agent, "status": args.status,
-        "start_sha": start_sha, "end_sha": require_commit(repo, "HEAD", "Ending SHA"),
+        "start_sha": start_sha, "end_sha": end_sha,
         "acceptance_criteria": args.acceptance_criterion,
         "acceptance_outcome": args.acceptance_outcome,
         "files_changed": args.file,
@@ -586,7 +596,18 @@ def close_command(args: argparse.Namespace) -> int:
         }
         validate_data(lesson, ASSET_ROOT / "schemas" / "proposed-learning.schema.json")
         safe_write(brain / "lessons" / "proposed" / f"{lesson_id}.yaml", dump_yaml(lesson), repo, created)
-    print(dump_yaml({"status": "closed", "created": created, "mission_id": mission_id}), end="")
+    print(
+        dump_yaml(
+            {
+                "status": "closed",
+                "created": created,
+                "mission_id": mission_id,
+                "start_sha": start_sha,
+                "end_sha": end_sha,
+            }
+        ),
+        end="",
+    )
     return 0
 
 
@@ -1211,7 +1232,7 @@ def parser() -> argparse.ArgumentParser:
     context.add_argument("--base-sha"); context.add_argument("--mission-id"); context.add_argument("--execution-id"); context.add_argument("--output"); context.set_defaults(func=context_command)
     close = sub.add_parser("close")
     close.add_argument("--repo", default="."); close.add_argument("--objective", required=True); close.add_argument("--role", required=True)
-    close.add_argument("--status", choices=["completed", "failed", "blocked", "cancelled"], required=True); close.add_argument("--start-sha", required=True)
+    close.add_argument("--status", choices=["completed", "failed", "blocked", "cancelled"], required=True); close.add_argument("--start-sha", required=True); close.add_argument("--end-sha")
     close.add_argument("--agent", default="unspecified-agent"); close.add_argument("--acceptance-criterion", action="append", default=[])
     close.add_argument("--acceptance-outcome", required=True); close.add_argument("--file", action="append", default=[])
     close.add_argument("--review-cycle", action="append", default=[]); close.add_argument("--finding-resolution", action="append", default=[])

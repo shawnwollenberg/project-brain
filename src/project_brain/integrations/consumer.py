@@ -153,7 +153,7 @@ def _prepare_context(repo: Path, request: dict[str, Any]) -> dict[str, Any]:
     pack = prepared.data
     artifacts: list[dict[str, Any]] = []
     changed = False
-    if request.get("write", request.get("preview") is not True):
+    if request.get("write"):
         if core.git_dirty(repo):
             raise core.BrainError("Writing a context pack requires a clean worktree.")
         mission_id = str(request.get("mission_id") or core.slug(str(request["objective"])))
@@ -181,7 +181,9 @@ def _read_context(repo: Path, request: dict[str, Any]) -> dict[str, Any]:
 
 
 def _record_closure(repo: Path, request: dict[str, Any]) -> dict[str, Any]:
-    result = api.close_mission(repo, **request)
+    options = dict(request)
+    options.pop("context_checksum", None)
+    result = api.close_mission(repo, **options)
     if result.exit_code:
         raise core.BrainError(result.text.strip())
     artifacts = [
@@ -208,10 +210,24 @@ def _propose(repo: Path, request: dict[str, Any]) -> dict[str, Any]:
 
 
 def _evaluate(repo: Path, request: dict[str, Any]) -> dict[str, Any]:
-    result = api.evaluate(repo, **request)
+    options = dict(request)
+    target = _safe_target(repo, str(options["output"])) if options.get("output") else None
+    if target:
+        options["output"] = str(target)
+    result = api.evaluate(repo, **options)
     if result.exit_code:
         raise core.BrainError(result.text.strip())
-    return {"evaluation": result.data, "human_approval_required": True}
+    artifacts = (
+        [artifact_descriptor(repo, target, "knowledge_evaluation", core.VERSION)]
+        if target and target.is_file()
+        else []
+    )
+    return {
+        "evaluation": result.data,
+        "artifacts": artifacts,
+        "repository_files_changed": bool(artifacts),
+        "human_approval_required": True,
+    }
 
 
 def _curation(repo: Path, request: dict[str, Any]) -> dict[str, Any]:
