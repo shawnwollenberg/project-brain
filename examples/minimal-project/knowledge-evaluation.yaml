@@ -1,0 +1,57 @@
+schema_version: "2.5.0"
+artifact_type: "knowledge-evaluation"
+evaluation_id: "knowledge-evaluation-example"
+repository_sha: "0123456789abcdef0123456789abcdef01234567"
+evaluator: "project-brain-deterministic-v1"
+reviewer: "human-approval-required"
+experience_events:
+  - id: "event-example-reuse"
+    learning_id: "lesson-approval-boundaries"
+    event: "reused"
+    evidence: "docs/onboarding-review.md"
+evaluations:
+  - learning_id: "lesson-approval-boundaries"
+    claim: "Production onboarding should separate test and go-live approval."
+    scope: ["onboarding", "approval-boundaries"]
+    scope_classification: "repository"
+    novelty:
+      score: 1.0
+      classification: "new"
+      matches: []
+    evidence_quality:
+      score: 0.88
+      classification: "strong"
+      inspectable: 3
+      total: 3
+      evidence_kinds: ["file", "review", "test"]
+      claim_terms_supported: ["approval", "onboarding", "production", "test"]
+      issues: []
+    contradictions: []
+    confidence:
+      score: 0.66
+      observed: 1
+      reused: 1
+      contradicted: 0
+      superseded: false
+      formula: "evidence_quality * experience ratio"
+    encoding:
+      primary: "playbook"
+      primary_score: 0.92
+      rationale: "Workflow and approval signals favor a reusable playbook."
+      alternatives:
+        - target: "policy"
+          score: 0.78
+          rationale: "The approval boundary is also enforceable as policy."
+    promotion:
+      recommendation: "human_review"
+      rationale: "The proposal is novel, evidence-backed, and repeatedly reused."
+      human_approval: "required"
+      automatic_promotion: false
+summary:
+  proposals_evaluated: 1
+  need_human_review: 1
+  duplicates_or_merges: 0
+  contradictions: 0
+  weak_evidence: 0
+generated_at: "2026-07-24T13:27:19-04:00"
+note: "Deterministic recommendation only. No lesson was promoted or moved."

@@ -1,0 +1,22 @@
+schema_version: "2.0.0"
+artifact_type: "context-pack"
+objective: "Eliminate scheduler test flakiness"
+role: "test engineer"
+repository_sha: "0123456789abcdef"
+selection:
+  strategy: "deterministic-v2"
+  sources:
+    - path: "AGENTS.md"
+      reason: "repository operating context"
+      bytes: 812
+      estimated_tokens: 203
+      sha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    - path: "src/scheduler.test.ts"
+      reason: "expected file or parent path"
+      bytes: 4200
+      estimated_tokens: 1050
+      sha256: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  omitted_sources: []
+  total_bytes: 5012
+  estimated_tokens: 1253
+created_at: "2026-01-02T03:04:05-05:00"

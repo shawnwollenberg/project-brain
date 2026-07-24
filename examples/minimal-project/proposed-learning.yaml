@@ -1,0 +1,22 @@
+schema_version: "2.0.0"
+artifact_type: "proposed-learning"
+id: "lesson-frozen-scheduler-clock"
+title: "Freeze the clock in scheduler tests"
+scope: ["scheduler", "tests"]
+status: "proposed"
+claim: "Scheduler concurrency tests are deterministic only when wall-clock time is controlled."
+evidence:
+  - kind: "file"
+    reference: "src/scheduler.test.ts"
+  - kind: "command"
+    reference: "npm test -- scheduler"
+confidence: "high"
+observed_at: "2026-01-02"
+verified_at: null
+superseded_by: null
+recommended_future_behavior: "Use the repository clock fixture for all scheduler concurrency tests."
+proposed_by: "test-agent"
+source_mission: "2026-01-02-eliminate-scheduler-test-flakiness"
+suggested_disposition: "test"
+contradiction_check: "No contradiction found in confirmed lessons."
+duplicate_check: "No duplicate found."
