@@ -1,0 +1,18 @@
+schema_version: 2.5.0
+artifact_type: knowledge-review
+repository_sha: 3980cae5917c87879ef7e623b9aabe77ddd123c2
+reviewer: human-approval-required
+recommendations:
+- learning_id: lesson-9fb80a9be1ef
+  action: mission_local
+  rationale: The claim has limited evidence-backed validation experience.
+  target: originating mission
+  human_approval: required
+  resulting_status: proposed
+  evidence:
+  - kind: review
+    reference: .project-brain/reviews/0.3.0-proposal-independent-review.yaml
+  - kind: test
+    reference: tests/test_proposals.py
+generated_at: '2026-07-24T18:43:37+00:00'
+note: Recommendations only; no lesson lifecycle files were modified.
