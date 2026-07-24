@@ -7,6 +7,8 @@ description: Initialize, retrieve, close, evaluate, curate, and validate a provi
 
 Create durable repository knowledge without turning generated claims into truth. Keep Git as the source of truth, Markdown readable by humans, YAML machine-readable, and every promoted lesson reviewable and evidence-backed.
 
+This skill is adapter version 0.3.0 for Project Brain package 0.3.x and schema 2.5.x. It contains no Project Brain engine. Invoke the installed `project-brain` command only.
+
 ## Operating rules
 
 1. Inspect before writing. Run `git status --short`, resolve the repository root, and identify existing `AGENTS.md` and `.project-brain/` content.
@@ -47,6 +49,15 @@ Dependencies:
 ```bash
 python3 -m pip install PyYAML jsonschema
 ```
+
+If `project-brain` is unavailable, stop before mutation and report:
+
+```text
+Project Brain package is unavailable. Install the matching standalone package,
+then run `project-brain doctor`. Do not fall back to a bundled or copied engine.
+```
+
+Run `project-brain doctor` before first use or when it reports a version mismatch. Follow its repair command rather than silently invoking another implementation.
 
 Discover the exact interpreter, environment, missing packages, and install command:
 

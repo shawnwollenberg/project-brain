@@ -12,7 +12,9 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-VERSION = "0.2.0"
+PACKAGE_VERSION = "0.3.0"
+SKILL_ADAPTER_VERSION = "0.3.0"
+SUPPORTED_SCHEMAS = ["2.5.0"]
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "skills" / "codex" / "project-brain"
 VALIDATOR = Path.home() / ".codex/skills/.system/skill-creator/scripts/quick_validate.py"
@@ -31,7 +33,7 @@ def install(target: Path, force: bool) -> None:
     source_digest = digest(SOURCE)
     if target.exists():
         if digest(target) == source_digest:
-            print(f"Project Brain Codex skill {VERSION} already installed at {target}")
+            print(f"Project Brain Codex skill adapter {SKILL_ADAPTER_VERSION} already installed at {target}")
             return
         if not force:
             raise SystemExit(f"Refusing to overwrite modified/different skill at {target}; inspect it or rerun with --force.")
@@ -41,8 +43,19 @@ def install(target: Path, force: bool) -> None:
         print(f"Preserved previous installation at {backup}")
     target.parent.mkdir(parents=True, exist_ok=True)
     shutil.copytree(SOURCE, target)
-    (target / MANIFEST).write_text(json.dumps({"version": VERSION, "source_digest": source_digest}, indent=2) + "\n")
-    print(f"Installed Project Brain Codex skill {VERSION} at {target}")
+    commit = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True, capture_output=True
+    )
+    manifest = {
+        "project_brain_package_version": PACKAGE_VERSION,
+        "skill_adapter_version": SKILL_ADAPTER_VERSION,
+        "installation_source_commit": commit.stdout.strip() if commit.returncode == 0 else None,
+        "installed_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+        "supported_schema_versions": SUPPORTED_SCHEMAS,
+        "source_digest": source_digest,
+    }
+    (target / MANIFEST).write_text(json.dumps(manifest, indent=2) + "\n")
+    print(f"Installed Project Brain Codex skill adapter {SKILL_ADAPTER_VERSION} for package {PACKAGE_VERSION} at {target}")
 
 
 def validate(target: Path) -> None:
@@ -53,7 +66,7 @@ def validate(target: Path) -> None:
     result = subprocess.run([sys.executable, str(VALIDATOR), str(target)], text=True)
     if result.returncode:
         raise SystemExit(result.returncode)
-    print(f"Validated Project Brain Codex skill {VERSION} at {target}")
+    print(f"Validated Project Brain Codex skill adapter {SKILL_ADAPTER_VERSION} at {target}")
 
 
 def uninstall(target: Path, force: bool) -> None:
@@ -68,7 +81,7 @@ def uninstall(target: Path, force: bool) -> None:
         if digest(target) != expected and not force:
             raise SystemExit(f"Refusing to remove locally modified skill at {target}; inspect it or use --force.")
     shutil.rmtree(target)
-    print(f"Removed Project Brain Codex skill {VERSION} from {target}")
+    print(f"Removed Project Brain Codex skill adapter {SKILL_ADAPTER_VERSION} from {target}")
 
 
 def main() -> int:
