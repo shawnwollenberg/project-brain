@@ -8,7 +8,7 @@ Project Brain is not a conversational-memory database, transcript or chain-of-th
 
 ## Install
 
-Project Brain requires Python 3.9 or newer:
+Project Brain requires Python 3.8 or newer:
 
 ```bash
 python3 -m pip install -e '.[dev]'

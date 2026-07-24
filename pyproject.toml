@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=69"]
+requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,13 +7,14 @@ name = "project-brain"
 version = "0.2.0"
 description = "Git-native, evidence-backed project knowledge for agents and engineering teams"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.8"
 license = {text = "Apache-2.0"}
 authors = [{name = "Project Brain contributors"}]
 dependencies = ["PyYAML>=6.0", "jsonschema>=4.18"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
