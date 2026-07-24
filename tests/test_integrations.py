@@ -119,6 +119,26 @@ class ConsumerIntegrationTests(unittest.TestCase):
         self.assertEqual(0, health["knowledge"]["confirmed"])
         core.validate_data(health, core.ASSET_ROOT / "schemas/knowledge-health.schema.json")
 
+    def test_curation_exposes_evaluator_reports_without_promoting(self) -> None:
+        self.initialize()
+        fixture = {
+            "schema_version": "2.5.0",
+            "artifact_type": "knowledge-evaluation",
+            "evaluation_id": "evaluation-fixture",
+            "evaluated_at": "2026-07-24",
+            "evaluator": "independent-review",
+            "evaluations": [],
+            "repository_changes_approved": False,
+            "approval": {"required": True, "status": "pending", "approved_by": None, "approved_at": None},
+        }
+        target = self.repo / ".project-brain/evaluations/evaluation-fixture.yaml"
+        target.write_text(core.dump_yaml(fixture))
+        result = consumer_operation("get_curation", self.repo)
+        self.assertEqual("succeeded", result["status"])
+        self.assertEqual(1, len(result["data"]["evaluations"]))
+        self.assertTrue(result["human_approval_required"])
+        self.assertFalse(result["repository_files_changed"])
+
     def test_library_and_cli_envelopes_match(self) -> None:
         self.initialize()
         previous = os.environ.get("PROJECT_BRAIN_TIMESTAMP")

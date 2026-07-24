@@ -191,6 +191,7 @@ def _evaluate(repo: Path, request: dict[str, Any]) -> dict[str, Any]:
 
 def _curation(repo: Path, request: dict[str, Any]) -> dict[str, Any]:
     reviews = []
+    evaluations = []
     for path in sorted((repo / ".project-brain/evaluations").glob("*.yaml")):
         data = core.load_yaml(path)
         if data.get("artifact_type") == "knowledge-review":
@@ -199,7 +200,15 @@ def _curation(repo: Path, request: dict[str, Any]) -> dict[str, Any]:
                 "review": data,
                 "sha256": artifact_descriptor(repo, path, "knowledge_review", str(data.get("schema_version")))["sha256"],
             })
-    return {"reviews": reviews, "human_approval_required": True}
+        elif data.get("artifact_type") == "knowledge-evaluation":
+            evaluations.append({
+                "path": str(path.relative_to(repo)),
+                "evaluation": data,
+                "sha256": artifact_descriptor(
+                    repo, path, "knowledge_evaluation", str(data.get("schema_version"))
+                )["sha256"],
+            })
+    return {"reviews": reviews, "evaluations": evaluations, "human_approval_required": True}
 
 
 def _list_knowledge(repo: Path, request: dict[str, Any]) -> dict[str, Any]:
