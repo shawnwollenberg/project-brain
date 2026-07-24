@@ -86,6 +86,13 @@ def close_mission(repo: str | Path, **options: Any) -> CommandResult:
     return invoke(args)
 
 
+def propose_learning(repo: str | Path = ".", **options: Any) -> CommandResult:
+    """Create or preview a mission-backed learning proposal."""
+
+    repeated = {"scope", "evidence"}
+    return _simple("propose-learning", repo, options, repeated=repeated)
+
+
 def evaluate(repo: str | Path = ".", **options: Any) -> CommandResult:
     return _simple("evaluate", repo, options, repeated={"learning", "experience"})
 
@@ -114,6 +121,9 @@ def _simple(command: str, repo: str | Path, options: dict[str, Any], repeated: s
         if key in repeated:
             for item in value:
                 args.extend([flag, str(item)])
+        elif isinstance(value, bool):
+            if value:
+                args.append(flag)
         elif value is not None:
             args.extend([flag, str(value)])
     return invoke(args)

@@ -10,6 +10,7 @@ from .api import (
     migrate,
     prepare_context,
     profile,
+    propose_learning,
     validate,
 )
 from .core import BrainError
@@ -25,6 +26,7 @@ __all__ = [
     "migrate",
     "prepare_context",
     "profile",
+    "propose_learning",
     "validate",
 ]
-__version__ = "0.2.0"
+__version__ = "0.3.0"

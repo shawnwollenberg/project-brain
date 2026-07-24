@@ -12,12 +12,24 @@
     "scope": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
     "status": {"const": "proposed"},
     "claim": {"type": "string", "minLength": 1},
-    "evidence": {"type": "array", "minItems": 1, "items": {"type": "object", "required": ["kind", "reference"]}},
+    "evidence": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["kind", "reference"],
+        "properties": {
+          "kind": {"enum": ["file", "test", "review", "mission", "command", "artifact"]},
+          "reference": {"type": "string", "minLength": 1}
+        }
+      }
+    },
     "confidence": {"enum": ["low", "medium", "high"]},
     "observed_at": {"type": "string", "minLength": 1},
     "recommended_future_behavior": {"type": "string", "minLength": 1},
     "proposed_by": {"type": "string", "minLength": 1},
     "source_mission": {"type": "string", "minLength": 1},
+    "proposal_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "suggested_disposition": {"type": "string", "minLength": 1},
     "contradiction_check": {"type": "string", "minLength": 1},
     "duplicate_check": {"type": "string", "minLength": 1}

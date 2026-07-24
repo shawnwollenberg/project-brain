@@ -15,6 +15,16 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from .knowledge import (
+    canonical_event_id,
+    canonical_scope,
+    claim_terms,
+    contradiction_key,
+    normalized_claim,
+    proposal_fingerprint,
+    similarity,
+)
+
 try:
     import yaml
     from jsonschema import Draft202012Validator, FormatChecker
@@ -26,6 +36,8 @@ except ImportError as exc:
     DEPENDENCY_ERROR = exc
 
 VERSION = "2.5.0"
+PACKAGE_VERSION = "0.3.0"
+SKILL_ADAPTER_VERSION = "0.3.0"
 PACKAGE_ROOT = Path(__file__).resolve().parent
 ASSET_ROOT = PACKAGE_ROOT / "resources"
 SECRET_PATTERNS = [
@@ -74,7 +86,34 @@ def runtime_report() -> dict[str, Any]:
         manager = "uv/pip"
     minimum = tuple(int(part) for part in os.environ.get("PROJECT_BRAIN_MIN_PYTHON", "3.8").split(".")[:2])
     supported = sys.version_info >= minimum
+    skill_path = Path(os.environ.get("PROJECT_BRAIN_SKILL_PATH", Path.home() / ".codex/skills/project-brain")).expanduser().resolve()
+    manifest_path = skill_path / ".project-brain-install.json"
+    manifest: dict[str, Any] = {}
+    if manifest_path.is_file():
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            manifest = {}
+    implementation_files = [
+        str(path.relative_to(skill_path))
+        for folder in ("scripts", "assets")
+        if (skill_path / folder).exists()
+        for path in sorted((skill_path / folder).rglob("*"))
+        if path.is_file()
+    ]
+    adapter_version = str(manifest.get("skill_adapter_version", "unknown"))
+    compatible = adapter_version == SKILL_ADAPTER_VERSION and not implementation_files
+    schema_names = sorted(path.name for path in (ASSET_ROOT / "schemas").glob("*.schema.json"))
     return {
+        "core_package_version": PACKAGE_VERSION,
+        "skill_adapter_version": adapter_version,
+        "versions_compatible": compatible,
+        "skill_installation_path": str(skill_path),
+        "skill_installed": skill_path.is_dir(),
+        "supported_schema_versions": [VERSION],
+        "schema_availability": {"available": bool(schema_names), "count": len(schema_names), "schemas": schema_names},
+        "implementation_drift": implementation_files,
+        "recommended_repair_command": "python3 scripts/install_skill.py install --force",
         "required_python": f">={minimum[0]}.{minimum[1]}",
         "interpreter": sys.executable,
         "python_version": ".".join(map(str, sys.version_info[:3])),
@@ -147,34 +186,6 @@ def timestamp() -> str:
 def slug(value: str) -> str:
     cleaned = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
     return cleaned[:64] or "mission"
-
-
-def normalized_claim(value: str) -> str:
-    return re.sub(r"\s+", " ", value.strip().lower())
-
-
-def claim_terms(value: str) -> set[str]:
-    stop = {
-        "about", "after", "again", "also", "and", "before", "between", "from",
-        "have", "into", "only", "should", "that", "the", "their", "this", "when",
-        "where", "while", "with",
-    }
-    return {term for term in re.findall(r"[a-z0-9_-]{3,}", value.lower()) if term not in stop}
-
-
-def similarity(left: str, right: str) -> float:
-    left_terms, right_terms = claim_terms(left), claim_terms(right)
-    if not left_terms and not right_terms:
-        return 1.0
-    union = left_terms | right_terms
-    return len(left_terms & right_terms) / len(union) if union else 0.0
-
-
-def contradiction_key(value: str) -> tuple[str, bool]:
-    normalized = normalized_claim(value)
-    negative = bool(re.search(r"\b(?:do not|don't|never|must not|should not|avoid)\b", normalized))
-    canonical = re.sub(r"\b(?:do not|don't|never|must not|should not|avoid)\b", "", normalized)
-    return re.sub(r"\s+", " ", canonical).strip(), negative
 
 
 def scan_secrets(text: str) -> list[str]:
@@ -560,14 +571,13 @@ def curate_command(args: argparse.Namespace) -> int:
         "reject", "mission_local", "merge", "confirm", "adr", "playbook",
         "test", "policy", "followup_issue", "stale", "supersede",
     }
-    evaluated_ids = set()
+    evaluated: dict[str, list[dict[str, Any]]] = {}
     for evaluation_path in sorted((brain / "evaluations").glob("*.yaml")):
-        try:
-            evaluation = load_yaml(evaluation_path)
-        except BrainError:
-            continue
+        evaluation = load_yaml(evaluation_path)
         if evaluation.get("artifact_type") == "knowledge-evaluation":
-            evaluated_ids.update(str(item.get("learning_id")) for item in evaluation.get("evaluations", []))
+            validate_data(evaluation, ASSET_ROOT / "schemas" / "knowledge-evaluation.schema.json")
+            for item in evaluation.get("evaluations", []):
+                evaluated.setdefault(str(item.get("learning_id")), []).append(item)
     for path, lesson in proposals:
         claim = re.sub(r"\s+", " ", str(lesson.get("claim", "")).strip().lower())
         scope = tuple(sorted(str(item).strip().lower() for item in lesson.get("scope", [])))
@@ -576,8 +586,66 @@ def curate_command(args: argparse.Namespace) -> int:
         action = suggested if suggested in dispositions else "confirm"
         reason = f"Evidence-backed proposal suggests {action}; no exact duplicate was found."
         learning_id = str(lesson.get("id", path.stem))
-        if learning_id not in evaluated_ids:
-            action, reason = "followup_issue", "Run the deterministic Knowledge Evaluator before making a curation recommendation."
+        expected_fingerprint = proposal_fingerprint(lesson)
+        candidates = evaluated.get(learning_id, [])
+        current_candidates = [
+            item for item in candidates
+            if item.get("proposal_fingerprint") == expected_fingerprint
+        ]
+        evaluator_priority = {
+            "resolve_contradiction": 0,
+            "needs_evidence": 1,
+            "mission_local": 2,
+            "merge": 3,
+            "human_review": 4,
+        }
+        evaluation = min(
+            current_candidates,
+            key=lambda item: (
+                evaluator_priority.get(str(item.get("promotion", {}).get("recommendation")), -1),
+                str(item.get("proposal_fingerprint", "")),
+            ),
+            default=None,
+        )
+        evaluator_lock = False
+        if not evaluation:
+            if candidates:
+                action, reason, evaluator_lock = (
+                    "followup_issue",
+                    "The proposal changed after evaluation; rerun the Knowledge Evaluator before curation.",
+                    True,
+                )
+            else:
+                action, reason = "followup_issue", "Run the deterministic Knowledge Evaluator before making a curation recommendation."
+                evaluator_lock = True
+        if evaluation:
+            promotion = evaluation.get("promotion", {})
+            evaluator_recommendation = promotion.get("recommendation")
+            evaluator_reason = str(promotion.get("rationale", "Knowledge Evaluator recommendation."))
+            encoding_target = str(evaluation.get("encoding", {}).get("primary", "lesson"))
+            encoding_action = {
+                "lesson": "confirm",
+                "adr": "adr",
+                "playbook": "playbook",
+                "test": "test",
+                "policy": "policy",
+                "followup_issue": "followup_issue",
+                "mission_local": "mission_local",
+            }.get(encoding_target, "confirm")
+            if evaluator_recommendation == "resolve_contradiction":
+                action, reason, evaluator_lock = "followup_issue", evaluator_reason, True
+            elif evaluator_recommendation == "needs_evidence":
+                action, reason, evaluator_lock = "mission_local", evaluator_reason, True
+            elif evaluator_recommendation == "mission_local":
+                action, reason, evaluator_lock = "mission_local", evaluator_reason, True
+            elif evaluator_recommendation == "merge":
+                action, reason, evaluator_lock = "merge", evaluator_reason, True
+            elif evaluator_recommendation == "human_review":
+                action, reason = encoding_action, evaluator_reason
+            else:
+                action, reason, evaluator_lock = "followup_issue", "Evaluator result is unsupported; human inspection is required.", True
+        if evaluator_lock:
+            pass
         elif not lesson.get("evidence"):
             action, reason = "reject", "Evidence is missing."
         elif scoped_claim in seen:
@@ -650,26 +718,44 @@ def curate_command(args: argparse.Namespace) -> int:
 
 def load_knowledge(repo: Path) -> list[tuple[Path, dict[str, Any]]]:
     brain = repo / ".project-brain" / "lessons"
-    return [
-        (path, load_yaml(path))
-        for folder in ("proposed", "confirmed", "stale", "superseded")
-        for path in sorted((brain / folder).glob("*.yaml"))
-    ]
+    result = []
+    for folder in ("proposed", "confirmed", "stale", "superseded"):
+        for path in sorted((brain / folder).glob("*.yaml")):
+            data = load_yaml(path)
+            major = str(data.get("schema_version", "0")).split(".", 1)[0]
+            if major not in {"1", "2"}:
+                raise BrainError(f"Unsupported knowledge schema major in {path}: {data.get('schema_version')!r}")
+            artifact = str(data.get("artifact_type", ""))
+            if artifact not in {"proposed-learning", "confirmed-learning"}:
+                raise BrainError(f"Unsupported knowledge artifact in {path}: {artifact!r}")
+            local_schema = repo / ".project-brain" / "schemas" / f"{artifact}.schema.json"
+            schema = local_schema if major == "1" and local_schema.exists() else ASSET_ROOT / "schemas" / f"{artifact}.schema.json"
+            validate_data(data, schema)
+            result.append((path, data))
+    return result
 
 
 def experience_events(repo: Path, raw_events: list[str]) -> list[dict[str, str]]:
     events: dict[str, dict[str, str]] = {}
     for path in sorted((repo / ".project-brain" / "evaluations").glob("*.yaml")):
-        try:
-            data = load_yaml(path)
-        except BrainError:
-            continue
+        data = load_yaml(path)
         if data.get("artifact_type") != "knowledge-evaluation":
             continue
+        validate_data(data, ASSET_ROOT / "schemas" / "knowledge-evaluation.schema.json")
         for event in data.get("experience_events", []):
             if isinstance(event, dict) and event.get("id"):
-                require_evidence_reference(repo, str(event.get("evidence", "")))
-                events[str(event["id"])] = {str(k): str(v) for k, v in event.items()}
+                learning_id = str(event.get("learning_id", ""))
+                event_type = str(event.get("event", ""))
+                reference = require_evidence_reference(repo, str(event.get("evidence", "")))
+                expected_id = canonical_event_id(learning_id, event_type, reference)
+                if str(event["id"]) != expected_id:
+                    raise BrainError(f"Experience event ID does not match its canonical evidence tuple: {event['id']}")
+                events[expected_id] = {
+                    "id": expected_id,
+                    "learning_id": learning_id,
+                    "event": event_type,
+                    "evidence": reference,
+                }
     for raw in raw_events:
         parts = raw.split(":", 2)
         if len(parts) != 3:
@@ -678,7 +764,7 @@ def experience_events(repo: Path, raw_events: list[str]) -> list[dict[str, str]]
         if event_type not in {"observed", "reused", "contradicted", "superseded"}:
             raise BrainError(f"Unsupported experience event: {event_type}")
         reference = require_evidence_reference(repo, reference)
-        event_id = hashlib.sha256(f"{learning_id}:{event_type}:{reference}".encode()).hexdigest()[:16]
+        event_id = canonical_event_id(learning_id, event_type, reference)
         events[event_id] = {
             "id": event_id,
             "learning_id": learning_id,
@@ -688,17 +774,20 @@ def experience_events(repo: Path, raw_events: list[str]) -> list[dict[str, str]]
     return [events[key] for key in sorted(events)]
 
 
-def evaluate_evidence(repo: Path, lesson: dict[str, Any]) -> dict[str, Any]:
+def evaluate_evidence(repo: Path, lesson_path: Path, lesson: dict[str, Any]) -> dict[str, Any]:
     entries = lesson.get("evidence", [])
     inspectable, kinds, support_terms, issues = 0, set(), set(), []
+    seen_references = set()
+    allowed_kinds = {"file", "test", "review", "mission", "command", "artifact"}
     terms = claim_terms(str(lesson.get("claim", "")))
     for item in entries:
         if not isinstance(item, dict):
             issues.append("Evidence entry is not structured.")
             continue
         kind, reference = str(item.get("kind", "")), str(item.get("reference", ""))
-        if kind:
-            kinds.add(kind)
+        if kind not in allowed_kinds:
+            issues.append(f"Unsupported evidence kind: {kind or '<missing kind>'}")
+            continue
         candidate = repo / reference
         resolved = candidate.resolve()
         unsafe = (
@@ -711,6 +800,25 @@ def evaluate_evidence(repo: Path, lesson: dict[str, Any]) -> dict[str, Any]:
         if unsafe:
             issues.append(f"Evidence is not inspectable: {reference or '<missing reference>'}")
             continue
+        canonical_reference = str(resolved.relative_to(repo.resolve()))
+        if canonical_reference in seen_references:
+            issues.append(f"Duplicate evidence reference does not add independent support: {reference}")
+            continue
+        if resolved == lesson_path.resolve() or canonical_reference.startswith(".project-brain/lessons/proposed/"):
+            issues.append(f"Proposed or self-authored learning is not independent evidence: {reference}")
+            continue
+        lower_reference = canonical_reference.lower()
+        if kind == "test" and not re.search(r"(?:^|[/_.-])(?:test|tests|spec|specs)(?:[/_.-]|$)", lower_reference):
+            issues.append(f"Evidence kind test does not reference a recognizable test artifact: {reference}")
+            continue
+        if kind == "review" and not re.search(r"(?:review|evaluation)", lower_reference):
+            issues.append(f"Evidence kind review does not reference a recognizable review artifact: {reference}")
+            continue
+        if kind == "mission" and not canonical_reference.startswith(".project-brain/missions/"):
+            issues.append(f"Evidence kind mission must reference a Project Brain mission: {reference}")
+            continue
+        seen_references.add(canonical_reference)
+        kinds.add(kind)
         inspectable += 1
         try:
             support_terms |= terms & claim_terms(candidate.read_text(encoding="utf-8", errors="ignore")[:16000])
@@ -734,8 +842,9 @@ def evaluate_evidence(repo: Path, lesson: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def encoding_recommendations(lesson: dict[str, Any], evidence_score: float) -> dict[str, Any]:
+def encoding_recommendations(lesson: dict[str, Any], evidence_review: dict[str, Any]) -> dict[str, Any]:
     claim = normalized_claim(str(lesson.get("claim", "")))
+    tokens = claim_terms(claim)
     scores = {
         "lesson": 0.5,
         "adr": 0.2,
@@ -753,11 +862,18 @@ def encoding_recommendations(lesson: dict[str, Any], evidence_score: float) -> d
         "followup_issue": ("todo", "follow-up", "incomplete", "missing"),
     }
     for target, words in keywords.items():
-        scores[target] += 0.18 * sum(1 for word in words if word in claim)
-    evidence_kinds = {str(item.get("kind", "")) for item in lesson.get("evidence", []) if isinstance(item, dict)}
+        scores[target] += 0.18 * sum(
+            1 for word in words
+            if (
+                any(token in {word, f"{word}s", f"{word}es"} for token in tokens)
+                if " " not in word
+                else bool(re.search(rf"\b{re.escape(word)}\b", claim))
+            )
+        )
+    evidence_kinds = set(evidence_review["evidence_kinds"])
     if "test" in evidence_kinds:
         scores["test"] += 0.35
-    if evidence_score < 0.5:
+    if evidence_review["score"] < 0.5:
         scores["mission_local"] += 0.6
         scores["followup_issue"] += 0.25
     ranked = sorted(((round(min(score, 1.0), 2), target) for target, score in scores.items()), key=lambda item: (-item[0], item[1]))
@@ -790,8 +906,8 @@ def evaluate_command(args: argparse.Namespace) -> int:
     for path, lesson in proposals:
         learning_id = str(lesson.get("id", path.stem))
         claim = str(lesson.get("claim", ""))
-        scope = sorted(str(item) for item in lesson.get("scope", []))
-        evidence_review = evaluate_evidence(repo, lesson)
+        scope = canonical_scope(lesson.get("scope", []))
+        evidence_review = evaluate_evidence(repo, path, lesson)
         matches, contradictions = [], []
         canonical, negative = contradiction_key(claim)
         for other_path, other in knowledge:
@@ -799,7 +915,7 @@ def evaluate_command(args: argparse.Namespace) -> int:
                 continue
             other_claim = str(other.get("claim", ""))
             overlap = similarity(claim, other_claim)
-            same_scope = bool(set(scope) & {str(item) for item in other.get("scope", [])})
+            same_scope = bool(set(scope) & set(canonical_scope(other.get("scope", []))))
             if overlap >= 0.45:
                 matches.append({
                     "learning_id": str(other.get("id", other_path.stem)),
@@ -830,7 +946,7 @@ def evaluate_command(args: argparse.Namespace) -> int:
         confidence_level = "high" if confidence_score >= 0.75 else "medium" if confidence_score >= 0.4 else "low"
         organization_terms = {"organization", "organizational", "cross-repository", "shared", "company", "all-repositories"}
         scope_kind = "organization" if organization_terms & {item.lower() for item in scope} else "repository"
-        encoding = encoding_recommendations(lesson, evidence_review["score"])
+        encoding = encoding_recommendations(lesson, evidence_review)
         exact_duplicate = any(item["same_scope"] and item["similarity"] == 1.0 for item in matches)
         if contradictions:
             recommendation, rationale = "resolve_contradiction", "A same-scope knowledge claim has the opposite polarity."
@@ -844,6 +960,7 @@ def evaluate_command(args: argparse.Namespace) -> int:
             recommendation, rationale = "human_review", "The proposal is evidence-backed and distinct enough for human promotion review."
         evaluations.append({
             "learning_id": learning_id,
+            "proposal_fingerprint": proposal_fingerprint(lesson),
             "claim": claim,
             "scope": scope,
             "scope_classification": scope_kind,
@@ -880,6 +997,11 @@ def evaluate_command(args: argparse.Namespace) -> int:
             },
         })
     digest = hashlib.sha256(dump_yaml({"sha": git_sha(repo), "evaluations": evaluations, "events": events}).encode()).hexdigest()[:16]
+    contradiction_pairs = {
+        tuple(sorted((item["learning_id"], contradiction["learning_id"])))
+        for item in evaluations
+        for contradiction in item["contradictions"]
+    }
     report = {
         "schema_version": VERSION,
         "artifact_type": "knowledge-evaluation",
@@ -893,7 +1015,7 @@ def evaluate_command(args: argparse.Namespace) -> int:
             "proposals_evaluated": len(evaluations),
             "need_human_review": sum(1 for item in evaluations if item["promotion"]["recommendation"] == "human_review"),
             "duplicates_or_merges": sum(1 for item in evaluations if item["promotion"]["recommendation"] == "merge"),
-            "contradictions": sum(len(item["contradictions"]) for item in evaluations),
+            "contradictions": len(contradiction_pairs),
             "weak_evidence": sum(1 for item in evaluations if item["evidence_quality"]["classification"] == "weak"),
         },
         "generated_at": git_commit_time(repo),
@@ -1010,6 +1132,27 @@ def migrate_command(args: argparse.Namespace) -> int:
     return 0
 
 
+def propose_command(args: argparse.Namespace) -> int:
+    from .proposals import propose_learning
+
+    result = propose_learning(
+        args.repo,
+        mission_id=args.mission_id,
+        claim=args.claim,
+        scope=args.scope,
+        evidence=args.evidence,
+        proposer=args.proposer,
+        title=args.title,
+        future_behavior=args.future_behavior,
+        confidence=args.confidence,
+        suggested_disposition=args.suggested_disposition,
+        input_file=args.input,
+        dry_run=args.dry_run,
+    )
+    print(dump_yaml(result), end="")
+    return 0
+
+
 def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(description=__doc__)
     sub = root.add_subparsers(dest="command", required=True)
@@ -1039,6 +1182,20 @@ def parser() -> argparse.ArgumentParser:
     evaluate.add_argument("--reviewer", default="human-approval-required")
     evaluate.add_argument("--output")
     evaluate.set_defaults(func=evaluate_command)
+    propose = sub.add_parser("propose-learning")
+    propose.add_argument("--repo", default=".")
+    propose.add_argument("--mission-id")
+    propose.add_argument("--claim")
+    propose.add_argument("--scope", action="append", default=[])
+    propose.add_argument("--evidence", action="append", default=[])
+    propose.add_argument("--proposer", default="agent")
+    propose.add_argument("--title")
+    propose.add_argument("--future-behavior")
+    propose.add_argument("--confidence", choices=["low", "medium", "high"], default="medium")
+    propose.add_argument("--suggested-disposition", default="human-review")
+    propose.add_argument("--input")
+    propose.add_argument("--dry-run", action="store_true")
+    propose.set_defaults(func=propose_command)
     validate = sub.add_parser("validate"); validate.add_argument("--repo", default="."); validate.set_defaults(func=validate_command)
     doctor = sub.add_parser("doctor"); doctor.set_defaults(func=doctor_command)
     migrate = sub.add_parser("migrate"); migrate.add_argument("--repo", default="."); migrate.add_argument("--dry-run", action="store_true"); migrate.set_defaults(func=migrate_command)

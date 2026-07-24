@@ -10,6 +10,7 @@ import unittest
 import json
 import sys
 import shutil
+import re
 from pathlib import Path
 
 CLI = Path(__file__).resolve().parents[2] / "scripts" / "project_brain.py"
@@ -111,6 +112,33 @@ duplicate_check: pending evaluator
             "--output", str(self.repo / ".project-brain/evaluations" / name),
             cwd=self.repo,
         )
+
+    def write_confirmed(self, learning_id: str, claim: str, scope: str = "repository") -> None:
+        path = self.repo / ".project-brain/lessons/confirmed" / f"{learning_id}.yaml"
+        path.write_text(f"""schema_version: "2.5.0"
+artifact_type: confirmed-learning
+id: {learning_id}
+title: Confirmed fixture
+scope: [{scope}]
+status: confirmed
+claim: {claim}
+evidence: [{{kind: file, reference: README.md}}]
+confidence:
+  score: 0.75
+validation:
+  observed: 2
+  reused: 1
+  contradicted: 0
+  superseded: false
+last_verified: "2026-01-02"
+observed_at: "2026-01-02"
+verified_at: "2026-01-02"
+superseded_by: null
+recommended_future_behavior: Apply after review
+proposed_by: test-agent
+reviewed_by: human-reviewer
+source_mission: mission-1
+""")
 
     def test_new_repository_initialization_and_profile_detection(self) -> None:
         self.initialize()
@@ -255,7 +283,7 @@ duplicate_check: pending evaluator
 
     def test_duplicate_curator_recommends_merge_without_mutation(self) -> None:
         self.initialize(); self.commit_all()
-        base = """schema_version: "1.0.0"
+        base = """schema_version: "2.5.0"
 artifact_type: proposed-learning
 id: {id}
 title: Freeze clock
@@ -270,6 +298,9 @@ superseded_by: null
 recommended_future_behavior: Freeze the clock
 proposed_by: agent
 source_mission: mission-1
+suggested_disposition: confirm
+contradiction_check: pending evaluator
+duplicate_check: pending evaluator
 """
         folder = self.repo / ".project-brain/lessons/proposed"
         (folder / "one.yaml").write_text(base.format(id="one"))
@@ -289,7 +320,7 @@ source_mission: mission-1
 
     def test_conflicting_lessons_require_human_resolution(self) -> None:
         self.initialize(); self.commit_all()
-        template = """schema_version: "1.0.0"
+        template = """schema_version: "2.5.0"
 artifact_type: proposed-learning
 id: {id}
 title: Scheduler policy
@@ -304,14 +335,17 @@ superseded_by: null
 recommended_future_behavior: Review scheduler policy
 proposed_by: agent
 source_mission: mission-1
+suggested_disposition: policy
+contradiction_check: pending evaluator
+duplicate_check: pending evaluator
 """
         folder = self.repo / ".project-brain/lessons/proposed"
         (folder / "use.yaml").write_text(template.format(id="use", claim="Use wall clock"))
         (folder / "avoid.yaml").write_text(template.format(id="avoid", claim="Do not use wall clock"))
         self.record_evaluation()
         result = command("curate", "--repo", str(self.repo), cwd=self.repo)
-        self.assertIn("Potential conflict", result.stdout)
-        self.assertIn("human resolution required", result.stdout)
+        self.assertIn("action: followup_issue", result.stdout)
+        self.assertIn("opposite polarity", result.stdout)
 
     def test_identical_claims_in_disjoint_scopes_are_not_merged(self) -> None:
         self.initialize(); self.commit_all()
@@ -338,7 +372,7 @@ duplicate_check: none
         self.record_evaluation()
         result = command("curate", "--repo", str(self.repo), cwd=self.repo)
         self.assertNotIn("action: merge", result.stdout)
-        self.assertEqual(result.stdout.count("action: policy"), 2)
+        self.assertEqual(result.stdout.count("action: mission_local"), 2)
 
     def test_explicit_context_source_cannot_disappear_silently(self) -> None:
         self.initialize()
@@ -390,13 +424,7 @@ duplicate_check: none
     def test_evaluator_detects_duplicate_lessons(self) -> None:
         self.initialize()
         self.write_proposal("candidate", "Freeze the scheduler clock", "scheduler")
-        confirmed = self.repo / ".project-brain/lessons/confirmed/existing.yaml"
-        confirmed.write_text("""id: existing
-status: confirmed
-scope: [scheduler]
-claim: Freeze the scheduler clock
-evidence: [{kind: file, reference: README.md}]
-""")
+        self.write_confirmed("existing", "Freeze the scheduler clock", "scheduler")
         report = parse_yaml(command("evaluate", "--repo", str(self.repo), cwd=self.repo).stdout)
         item = report["evaluations"][0]
         self.assertEqual(item["novelty"]["classification"], "duplicate")
@@ -406,17 +434,32 @@ evidence: [{kind: file, reference: README.md}]
     def test_evaluator_detects_contradictory_lessons(self) -> None:
         self.initialize()
         self.write_proposal("candidate", "Do not use wall clock", "scheduler")
-        confirmed = self.repo / ".project-brain/lessons/confirmed/existing.yaml"
-        confirmed.write_text("""id: existing
-status: confirmed
-scope: [scheduler]
-claim: Use wall clock
-evidence: [{kind: file, reference: README.md}]
-""")
+        self.write_confirmed("existing", "Use wall clock", "scheduler")
         report = parse_yaml(command("evaluate", "--repo", str(self.repo), cwd=self.repo).stdout)
         item = report["evaluations"][0]
         self.assertEqual(len(item["contradictions"]), 1)
         self.assertEqual(item["promotion"]["recommendation"], "resolve_contradiction")
+
+    def test_contradiction_normalizes_modals_contractions_punctuation_and_scope(self) -> None:
+        self.initialize()
+        cases = [
+            ("Must not use wall clock.", "Must use wall clock"),
+            ("Should not cache credentials!", "Should cache credentials"),
+            ("Don't publish automatically.", "Do publish automatically"),
+            ("Caching credentials is not allowed.", "Caching credentials is allowed"),
+        ]
+        for index, (negative, positive) in enumerate(cases):
+            with self.subTest(negative=negative):
+                self.write_proposal(f"candidate-{index}", negative, " Scheduler ")
+                self.write_confirmed(f"existing-{index}", positive, "scheduler")
+                item = parse_yaml(command(
+                    "evaluate", "--repo", str(self.repo), "--learning", f"candidate-{index}", cwd=self.repo,
+                ).stdout)["evaluations"][0]
+                self.assertEqual(len(item["contradictions"]), 1)
+                for path in (self.repo / ".project-brain/lessons/proposed").glob("*.yaml"):
+                    path.unlink()
+                for path in (self.repo / ".project-brain/lessons/confirmed").glob("*.yaml"):
+                    path.unlink()
 
     def test_evaluator_distinguishes_weak_and_strong_evidence(self) -> None:
         self.initialize()
@@ -435,6 +478,48 @@ evidence: [{kind: file, reference: README.md}]
         strong = parse_yaml(command("evaluate", "--repo", str(self.repo), "--learning", "strong", cwd=self.repo).stdout)["evaluations"][0]
         self.assertEqual(strong["evidence_quality"]["classification"], "strong")
         self.assertEqual(strong["promotion"]["recommendation"], "human_review")
+
+    def test_curator_honors_evaluator_weak_evidence_disposition(self) -> None:
+        self.initialize()
+        self.write_proposal("weak", "Missing evidence cannot support promotion", evidence="[{kind: file, reference: missing.md}]")
+        self.record_evaluation()
+        review = parse_yaml(command("curate", "--repo", str(self.repo), cwd=self.repo).stdout)
+        recommendation = review["recommendations"][0]
+        self.assertEqual(recommendation["action"], "mission_local")
+        self.assertIn("does not yet adequately support", recommendation["rationale"])
+
+    def test_curator_rejects_stale_evaluations_after_proposal_changes(self) -> None:
+        self.initialize()
+        self.write_proposal("claim-change", "Require approval before production changes")
+        self.write_proposal("scope-change", "Use repository validation", "repository")
+        self.write_proposal("evidence-change", "Preserve inspectable evidence")
+        self.record_evaluation()
+        claim_path = self.repo / ".project-brain/lessons/proposed/claim-change.yaml"
+        claim_path.write_text(claim_path.read_text().replace(
+            "Require approval before production changes",
+            "Allow production changes without approval",
+        ))
+        scope_path = self.repo / ".project-brain/lessons/proposed/scope-change.yaml"
+        scope_path.write_text(scope_path.read_text().replace("scope: [repository]", "scope: [organization]"))
+        evidence_path = self.repo / ".project-brain/lessons/proposed/evidence-change.yaml"
+        evidence_path.write_text(evidence_path.read_text().replace("reference: README.md", "reference: missing.md"))
+        review = parse_yaml(command("curate", "--repo", str(self.repo), cwd=self.repo).stdout)
+        self.assertEqual({item["action"] for item in review["recommendations"]}, {"followup_issue"})
+        self.assertTrue(all("changed after evaluation" in item["rationale"] for item in review["recommendations"]))
+
+    def test_curator_preserves_blocker_across_multiple_current_evaluations(self) -> None:
+        self.initialize()
+        self.write_proposal("weak", "Missing evidence cannot support promotion", evidence="[{kind: file, reference: missing.md}]")
+        blocker = self.repo / ".project-brain/evaluations/blocker.yaml"
+        command("evaluate", "--repo", str(self.repo), "--output", str(blocker), cwd=self.repo)
+        favorable = self.repo / ".project-brain/evaluations/favorable.yaml"
+        favorable.write_text(
+            blocker.read_text()
+            .replace("recommendation: needs_evidence", "recommendation: human_review")
+            .replace("primary: mission_local", "primary: policy")
+        )
+        review = parse_yaml(command("curate", "--repo", str(self.repo), cwd=self.repo).stdout)
+        self.assertEqual(review["recommendations"][0]["action"], "mission_local")
 
     def test_evaluator_classifies_repository_and_organization_scope(self) -> None:
         self.initialize()
@@ -459,6 +544,44 @@ evidence: [{kind: file, reference: README.md}]
         self.assertIn("test", targets)
         self.assertIn("policy", targets)
 
+    def test_evidence_quality_deduplicates_references_and_rejects_kind_laundering(self) -> None:
+        self.initialize()
+        claim = "Security approval policy requires review"
+        (self.repo / "evidence.md").write_text(f"{claim}\n")
+        self.write_proposal(
+            "laundered",
+            claim,
+            evidence="[{kind: file, reference: evidence.md}, {kind: test, reference: evidence.md}]",
+        )
+        item = parse_yaml(command("evaluate", "--repo", str(self.repo), cwd=self.repo).stdout)["evaluations"][0]
+        self.assertEqual(item["evidence_quality"]["inspectable"], 1)
+        self.assertEqual(item["evidence_quality"]["evidence_kinds"], ["file"])
+        self.assertNotEqual(item["evidence_quality"]["classification"], "strong")
+        self.assertTrue(any("Duplicate evidence" in issue for issue in item["evidence_quality"]["issues"]))
+        self.write_proposal("unsupported-kind", claim, evidence="[{kind: imaginary, reference: evidence.md}]")
+        result = command("evaluate", "--repo", str(self.repo), "--learning", "unsupported-kind", cwd=self.repo, ok=False)
+        self.assertIn("is not one of", result.stderr)
+
+    def test_evaluator_rejects_unsupported_knowledge_schema(self) -> None:
+        self.initialize()
+        self.write_proposal("unsupported", "Use repository evidence")
+        path = self.repo / ".project-brain/lessons/proposed/unsupported.yaml"
+        path.write_text(path.read_text().replace('schema_version: "2.5.0"', 'schema_version: "9.0.0"'))
+        result = command("evaluate", "--repo", str(self.repo), cwd=self.repo, ok=False)
+        self.assertIn("Unsupported knowledge schema major", result.stderr)
+
+    def test_evaluator_rejects_noncanonical_stored_experience_id(self) -> None:
+        self.initialize()
+        self.write_proposal("repeatable", "Scheduler validation uses repository evidence", "scheduler")
+        report = self.repo / ".project-brain/evaluations/reuse.yaml"
+        command(
+            "evaluate", "--repo", str(self.repo), "--learning", "repeatable",
+            "--experience", "repeatable:reused:README.md", "--output", str(report), cwd=self.repo,
+        )
+        report.write_text(re.sub(r"(?m)^- id: [a-f0-9]+$", "- id: caller-controlled", report.read_text(), count=1))
+        result = command("evaluate", "--repo", str(self.repo), "--learning", "repeatable", cwd=self.repo, ok=False)
+        self.assertIn("does not match its canonical evidence tuple", result.stderr)
+
     def test_confidence_increases_after_repeated_validation(self) -> None:
         self.initialize()
         self.write_proposal("repeatable", "Scheduler validation uses repository evidence", "scheduler")
@@ -477,6 +600,67 @@ evidence: [{kind: file, reference: README.md}]
         self.assertEqual(second["evaluations"][0]["confidence"]["reused"], 1)
         third = parse_yaml(command("evaluate", "--repo", str(self.repo), "--learning", "repeatable", cwd=self.repo).stdout)
         self.assertEqual(third["evaluations"][0]["confidence"]["reused"], 1)
+
+    def test_status_and_source_mission_changes_require_reevaluation(self) -> None:
+        self.initialize()
+        self.write_proposal("status-change", "Status changes invalidate evaluation")
+        self.write_proposal("mission-change", "Source mission changes invalidate evaluation")
+        self.record_evaluation()
+        status_path = self.repo / ".project-brain/lessons/proposed/status-change.yaml"
+        status_path.write_text(status_path.read_text().replace("status: proposed", "status: confirmed"))
+        mission_path = self.repo / ".project-brain/lessons/proposed/mission-change.yaml"
+        mission_path.write_text(mission_path.read_text().replace("source_mission: mission-1", "source_mission: mission-2"))
+        review = parse_yaml(command("curate", "--repo", str(self.repo), cwd=self.repo).stdout)
+        changed = {
+            item["learning_id"]: item
+            for item in review["recommendations"]
+            if item["learning_id"] in {"status-change", "mission-change"}
+        }
+        self.assertEqual({"followup_issue"}, {item["action"] for item in changed.values()})
+        self.assertTrue(all("changed after evaluation" in item["rationale"] for item in changed.values()))
+
+    def test_repeated_evaluation_is_byte_identical(self) -> None:
+        self.initialize()
+        self.write_proposal("deterministic", "Repository validation uses inspectable evidence")
+        first = command("evaluate", "--repo", str(self.repo), "--learning", "deterministic", cwd=self.repo).stdout
+        second = command("evaluate", "--repo", str(self.repo), "--learning", "deterministic", cwd=self.repo).stdout
+        self.assertEqual(first, second)
+
+    def test_self_authored_proposal_is_not_independent_evidence(self) -> None:
+        self.initialize()
+        self.write_proposal("source", "Self authored claims are not independent evidence")
+        source = ".project-brain/lessons/proposed/source.yaml"
+        self.write_proposal(
+            "candidate",
+            "Self authored claims are not independent evidence",
+            evidence=f"[{{kind: file, reference: {source}}}]",
+        )
+        item = parse_yaml(command(
+            "evaluate", "--repo", str(self.repo), "--learning", "candidate", cwd=self.repo,
+        ).stdout)["evaluations"][0]
+        self.assertEqual(0, item["evidence_quality"]["inspectable"])
+        self.assertTrue(any("not independent evidence" in issue for issue in item["evidence_quality"]["issues"]))
+
+    def test_duplicate_experience_input_cannot_inflate_confidence(self) -> None:
+        self.initialize()
+        self.write_proposal("repeatable", "Repository evidence supports repeatable validation")
+        single = parse_yaml(command(
+            "evaluate", "--repo", str(self.repo), "--learning", "repeatable",
+            "--experience", "repeatable:reused:README.md", cwd=self.repo,
+        ).stdout)["evaluations"][0]["confidence"]
+        duplicate = parse_yaml(command(
+            "evaluate", "--repo", str(self.repo), "--learning", "repeatable",
+            "--experience", "repeatable:reused:README.md",
+            "--experience", "repeatable:reused:README.md", cwd=self.repo,
+        ).stdout)["evaluations"][0]["confidence"]
+        self.assertEqual(single["score"], duplicate["score"])
+        self.assertEqual(1, duplicate["reused"])
+
+    def test_numeric_confidence_remains_compatible_with_confirmed_lessons(self) -> None:
+        self.initialize()
+        self.write_confirmed("numeric", "Numeric confidence remains schema compatible")
+        result = command("validate", "--repo", str(self.repo), cwd=self.repo)
+        self.assertIn("status: valid", result.stdout)
 
 
 if __name__ == "__main__":
