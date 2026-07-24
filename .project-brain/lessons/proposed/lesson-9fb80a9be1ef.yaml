@@ -1,0 +1,25 @@
+schema_version: 2.5.0
+artifact_type: proposed-learning
+id: lesson-9fb80a9be1ef
+title: Dedicated learning proposals should resolve and validate mission and evidence
+  pa
+scope:
+- repository
+status: proposed
+claim: Dedicated learning proposals should resolve and validate mission and evidence
+  paths before deriving stable identity
+evidence:
+- kind: review
+  reference: .project-brain/reviews/0.3.0-proposal-independent-review.yaml
+- kind: test
+  reference: tests/test_proposals.py
+confidence: medium
+observed_at: '2026-07-24'
+recommended_future_behavior: Use the dedicated mission-backed proposal operation and
+  preserve separate human approval
+proposed_by: codex-implementer
+source_mission: 2026-07-24-harden-document-and-independently-review-the-standalone-proposal
+suggested_disposition: policy
+contradiction_check: pending evaluator
+duplicate_check: pending evaluator
+proposal_fingerprint: b88a48dcdf0b36dc6dac55d3fbcae4ab2af18553622662f40ce6a7bb12fea378
