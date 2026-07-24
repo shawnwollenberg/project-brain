@@ -1,0 +1,56 @@
+schema_version: 2.5.0
+artifact_type: mission-result
+id: 2026-07-24-harden-document-and-independently-review-the-standalone-proposal
+objective: Harden, document, and independently review the standalone proposal command
+role: implementer
+agent: codex-primary
+status: completed
+start_sha: 07e8d231add46dbe3e654ec6e11a79a1f59bdc8c
+end_sha: 771b07add7ae586dc828a85f9c433a2f0d545c36
+acceptance_criteria:
+- Dedicated proposal CLI and library API validate mission provenance, SHAs, evidence,
+  secrets, fingerprints, duplicates, structured input, and dry runs
+- Independent review completes with no unresolved blocking findings
+- All standalone tests and official skill validation pass
+acceptance_outcome: 'passed: 56 tests; two repair cycles; zero unresolved blocking
+  findings'
+files_changed:
+- src/project_brain/proposals.py
+- src/project_brain/api.py
+- src/project_brain/core.py
+- tests/test_proposals.py
+- docs/workflows/propose-learning.md
+checks:
+- command: python3 -m unittest discover -s tests -p 'test_*.py'
+  result: passed 56 tests
+- command: project-brain validate --repo .
+  result: passed
+- command: python3 scripts/install_skill.py validate
+  result: passed
+review_cycles:
+- separate-context review found 3 initial blocking and 2 follow-up blocking findings
+- re-review confirmed all findings resolved and no blocking findings remain
+findings_and_resolutions:
+- mission ID and fallback mission paths now enforce resolved containment
+- existing no-op artifacts receive safety, schema, fingerprint, and exact validation
+  while preserving observed_at
+- evidence uses canonical resolved paths and rejects self-authored or kind-laundered
+  references
+- structured input types and explicit precedence are validated
+- cross-day deterministic no-op is covered
+risks: []
+evidence:
+- kind: file
+  reference: tests/test_proposals.py
+- kind: file
+  reference: .project-brain/reviews/0.3.0-proposal-independent-review.yaml
+- kind: file
+  reference: docs/release/0.3.0-readiness.md
+artifacts:
+- .project-brain/context-packs/0.3.0-proposal-mission-final.yaml
+- .project-brain/plans/0.3.0-proposal-mission.yaml
+state_updates:
+- Standalone proposal workflow is release-ready and independently reviewed
+follow_ups:
+- Continue behavior-driven decomposition of core.py
+completed_at: '2026-07-24T18:43:09+00:00'
