@@ -126,4 +126,4 @@ Mission Control, OfficeAnywhere, Aegis, and other applications should consume Pr
 - `tests/`: unit, integration, fixture, and inherited regression coverage
 - `docs/`: architecture, contracts, security, workflows, and decisions
 
-Licensed under Apache-2.0. Version 0.3.0 makes the standalone package authoritative while retaining validated Project Brain v2.5 artifact behavior.
+Licensed under Apache-2.0. Version 0.4.0 adds a stable provider-neutral consumer contract while retaining validated Project Brain v2.5 artifact behavior.
