@@ -1,0 +1,44 @@
+schema_version: 2.5.0
+artifact_type: project-profile
+repository:
+  id: project-brain
+  name: project-brain
+  identity_source: git_remote
+  checkout_path: /Users/shawnwollenberg/Developer/project-brain
+  remote_url: https://github.com/shawnwollenberg/project-brain.git
+  root: .
+  head_sha: 5674e9b0af66b5d70b100a8df87ead2dc751b68a
+detected:
+  languages:
+  - Python
+  frameworks: []
+  package_managers:
+  - pip
+  commands: {}
+  ci: []
+  deployment: []
+  documentation:
+  - AGENTS.md
+  - CHANGELOG.md
+  - README.md
+  - docs/adr/0001-git-source-of-truth.md
+  - docs/adr/0002-provider-neutral-core.md
+  - docs/adr/0003-human-gated-promotion.md
+  - docs/adr/0004-deterministic-retrieval.md
+  - docs/adr/0005-versioned-local-schemas.md
+  - docs/adr/0006-standalone-library.md
+  - docs/architecture/overview.md
+  - docs/concepts/evaluator.md
+  - docs/reconciliation/installed-v2.5-to-standalone-0.3.0.md
+  - docs/schemas/versioning.md
+  - docs/security/model.md
+  - docs/workflows/lifecycle.md
+observations:
+- claim: 'language: Python'
+  classification: observed
+  evidence:
+  - kind: file
+    reference: pyproject.toml
+inferences: []
+uncertainties: []
+updated_at: '2026-07-24T18:23:46+00:00'
