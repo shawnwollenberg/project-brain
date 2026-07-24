@@ -63,6 +63,7 @@ class ConsumerIntegrationTests(unittest.TestCase):
         self.assertEqual(["1.0"], report["consumer_contract_versions"])
         self.assertFalse(report["feature_flags"]["automatic_promotion"])
         self.assertIn("prepare_context", report["operations"])
+        self.assertTrue(report["operations"]["initialize_repository"]["human_approval_gated"])
         self.assertTrue(report["operations"]["prepare_context"]["supports_read_only_preview"])
         self.assertFalse(report["operations"]["prepare_context"]["preview_requires_clean_worktree"])
         compatible = consumer_operation("detect_repository", self.repo, contract_version="1.0")
@@ -71,6 +72,15 @@ class ConsumerIntegrationTests(unittest.TestCase):
         self.assertEqual("incompatible_contract", unsupported["exit_classification"])
         self.validate_envelope(compatible)
         self.validate_envelope(unsupported)
+
+    def test_initialization_is_an_explicit_structured_consumer_write(self) -> None:
+        result = consumer_operation("initialize_repository", self.repo)
+        self.assertEqual("succeeded", result["status"])
+        self.assertTrue(result["human_approval_required"])
+        self.assertTrue(result["repository_files_changed"])
+        self.assertTrue((self.repo / ".project-brain/project-profile.yaml").is_file())
+        self.assertTrue(result["artifacts"])
+        self.validate_envelope(result)
 
     def test_structured_errors_do_not_expose_tracebacks(self) -> None:
         result = consumer_operation("validate_repository", self.repo)

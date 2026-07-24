@@ -91,6 +91,31 @@ def _detect(repo: Path, request: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _initialize(repo: Path, request: dict[str, Any]) -> dict[str, Any]:
+    if (repo / ".project-brain").exists():
+        raise core.BrainError("Repository Project Brain is already initialized.")
+    if core.git_dirty(repo):
+        raise core.BrainError("Initializing Project Brain requires a clean worktree.")
+    result = api.initialize(
+        repo,
+        dry_run=False,
+        repository_id=str(request["repository_id"]) if request.get("repository_id") else None,
+    )
+    if result.exit_code:
+        raise core.BrainError(result.text.strip())
+    artifacts = [
+        artifact_descriptor(repo, repo / path, "project_brain_initialization", core.VERSION)
+        for path in result.changed_files
+        if (repo / path).is_file()
+    ]
+    return {
+        "initialization": result.data,
+        "artifacts": artifacts,
+        "repository_files_changed": bool(artifacts),
+        "human_approval_required": True,
+    }
+
+
 def _validate(repo: Path, request: dict[str, Any]) -> dict[str, Any]:
     if not (repo / ".project-brain").is_dir():
         raise core.BrainError("Repository Project Brain is not initialized.")
@@ -128,7 +153,7 @@ def _prepare_context(repo: Path, request: dict[str, Any]) -> dict[str, Any]:
     pack = prepared.data
     artifacts: list[dict[str, Any]] = []
     changed = False
-    if request.get("write"):
+    if request.get("write", request.get("preview") is not True):
         if core.git_dirty(repo):
             raise core.BrainError("Writing a context pack requires a clean worktree.")
         mission_id = str(request.get("mission_id") or core.slug(str(request["objective"])))
@@ -370,6 +395,7 @@ def _repair_action(message: str) -> str:
 
 _HANDLERS: dict[str, Callable[[Path, dict[str, Any]], dict[str, Any]]] = {
     "detect_repository": _detect,
+    "initialize_repository": _initialize,
     "validate_repository": _validate,
     "get_summary": _summary,
     "prepare_context": _prepare_context,

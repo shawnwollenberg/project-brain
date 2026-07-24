@@ -28,6 +28,7 @@ def _op(
 
 OPERATIONS: dict[str, dict[str, Any]] = {
     "detect_repository": _op("read-only", True, False, False, False),
+    "initialize_repository": _op("repository-writing", False, True, True, True),
     "validate_repository": _op("read-only", True, False, False, False),
     "get_summary": _op("read-only", True, False, False, False),
     "prepare_context": _op("repository-writing", True, True, False, True),
