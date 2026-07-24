@@ -79,8 +79,9 @@ def runtime_report() -> dict[str, Any]:
         missing.append("PyYAML")
     if Draft202012Validator is None:
         missing.append("jsonschema")
+    in_virtualenv = bool(os.environ.get("VIRTUAL_ENV")) or sys.prefix != getattr(sys, "base_prefix", sys.prefix)
     manager = "pip"
-    if os.environ.get("VIRTUAL_ENV"):
+    if in_virtualenv:
         manager = "venv + pip"
     elif shutil.which("uv"):
         manager = "uv/pip"
@@ -118,7 +119,7 @@ def runtime_report() -> dict[str, Any]:
         "interpreter": sys.executable,
         "python_version": ".".join(map(str, sys.version_info[:3])),
         "supported": supported,
-        "environment": "virtualenv" if os.environ.get("VIRTUAL_ENV") else "system",
+        "environment": "virtualenv" if in_virtualenv else "system",
         "package_manager": manager,
         "dependencies": ["PyYAML", "jsonschema"],
         "missing_dependencies": missing,
@@ -1186,13 +1187,13 @@ def parser() -> argparse.ArgumentParser:
     propose.add_argument("--repo", default=".")
     propose.add_argument("--mission-id")
     propose.add_argument("--claim")
-    propose.add_argument("--scope", action="append", default=[])
-    propose.add_argument("--evidence", action="append", default=[])
-    propose.add_argument("--proposer", default="agent")
+    propose.add_argument("--scope", action="append")
+    propose.add_argument("--evidence", action="append")
+    propose.add_argument("--proposer")
     propose.add_argument("--title")
     propose.add_argument("--future-behavior")
-    propose.add_argument("--confidence", choices=["low", "medium", "high"], default="medium")
-    propose.add_argument("--suggested-disposition", default="human-review")
+    propose.add_argument("--confidence", choices=["low", "medium", "high"])
+    propose.add_argument("--suggested-disposition")
     propose.add_argument("--input")
     propose.add_argument("--dry-run", action="store_true")
     propose.set_defaults(func=propose_command)

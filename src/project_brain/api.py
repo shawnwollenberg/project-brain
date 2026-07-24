@@ -89,8 +89,18 @@ def close_mission(repo: str | Path, **options: Any) -> CommandResult:
 def propose_learning(repo: str | Path = ".", **options: Any) -> CommandResult:
     """Create or preview a mission-backed learning proposal."""
 
-    repeated = {"scope", "evidence"}
-    return _simple("propose-learning", repo, options, repeated=repeated)
+    from .proposals import propose_learning as operation
+
+    normalized = dict(options)
+    if "input" in normalized:
+        normalized["input_file"] = normalized.pop("input")
+    try:
+        data = operation(repo, **normalized)
+        text = core.dump_yaml(data)
+        return CommandResult(0, data, text)
+    except (core.BrainError, OSError) as exc:
+        text = f"Project Brain: {exc}\n"
+        return CommandResult(2, None, text)
 
 
 def evaluate(repo: str | Path = ".", **options: Any) -> CommandResult:
@@ -119,8 +129,9 @@ def _simple(command: str, repo: str | Path, options: dict[str, Any], repeated: s
     for key, value in options.items():
         flag = "--" + key.replace("_", "-")
         if key in repeated:
-            for item in value:
-                args.extend([flag, str(item)])
+            if value is not None:
+                for item in value:
+                    args.extend([flag, str(item)])
         elif isinstance(value, bool):
             if value:
                 args.append(flag)

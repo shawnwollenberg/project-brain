@@ -131,6 +131,151 @@ class ProposalWorkflowTests(unittest.TestCase):
             dry_run=True,
         )
         self.assertEqual(2, missing.exit_code)
+        laundered = propose_learning(
+            self.repo,
+            mission_id=self.mission_id,
+            claim="Conflicting evidence kinds fail",
+            evidence=["file:README.md", "test:README.md"],
+            dry_run=True,
+        )
+        self.assertEqual(2, laundered.exit_code)
+        self_authored = self.repo / ".project-brain/lessons/proposed/self-authored.yaml"
+        self_authored.write_text("claim: assertion\n")
+        rejected = propose_learning(
+            self.repo,
+            mission_id=self.mission_id,
+            claim="Self-authored evidence fails",
+            evidence=[".project-brain/lessons/proposed/self-authored.yaml"],
+            dry_run=True,
+        )
+        self.assertEqual(2, rejected.exit_code)
+
+    def test_explicit_cli_values_override_structured_defaults(self) -> None:
+        structured = self.repo / "proposal-input.yaml"
+        structured.write_text(
+            f"mission_id: {self.mission_id}\n"
+            "claim: Explicit values override structured defaults\n"
+            "scope: [repository]\n"
+            "evidence: [{kind: file, reference: README.md}]\n"
+            "proposed_by: file-author\n"
+            "confidence: low\n"
+        )
+        preview = propose_learning(
+            self.repo,
+            input=str(structured),
+            proposer="cli-author",
+            confidence="high",
+            dry_run=True,
+        )
+        self.assertEqual("cli-author", preview.data["proposal"]["proposed_by"])
+        self.assertEqual("high", preview.data["proposal"]["confidence"])
+
+    def test_rejects_mission_path_traversal_and_malformed_structured_scope(self) -> None:
+        traversal = propose_learning(
+            self.repo,
+            mission_id="../outside",
+            claim="Traversal must fail",
+            evidence=["README.md"],
+            dry_run=True,
+        )
+        self.assertEqual(2, traversal.exit_code)
+        self.assertIn("path traversal", traversal.text)
+        structured = self.repo / "malformed.yaml"
+        structured.write_text(
+            f"mission_id: {self.mission_id}\n"
+            "claim: Malformed scope must fail\n"
+            "scope: repository\n"
+            "evidence: [README.md]\n"
+        )
+        malformed = propose_learning(self.repo, input=str(structured), dry_run=True)
+        self.assertEqual(2, malformed.exit_code)
+        self.assertIn("list of strings", malformed.text)
+
+    def test_existing_noop_revalidates_full_artifact_and_fingerprint(self) -> None:
+        options = {
+            "mission_id": self.mission_id,
+            "claim": "Existing proposals are revalidated before no-op",
+            "scope": ["repository"],
+            "evidence": ["README.md"],
+        }
+        created = propose_learning(self.repo, **options)
+        self.assertEqual("created", created.data["status"])
+        path = self.repo / created.data["created"][0]
+        path.write_text(path.read_text().replace("confidence: medium", "confidence: invalid"))
+        invalid = propose_learning(self.repo, **options)
+        self.assertEqual(2, invalid.exit_code)
+        self.assertIn("Schema validation failed", invalid.text)
+
+    def test_symlink_alias_cannot_hide_self_authored_evidence(self) -> None:
+        source = self.repo / ".project-brain/lessons/proposed/source.yaml"
+        source.write_text("claim: assertion\n")
+        alias = self.repo / "aliased-evidence.md"
+        alias.symlink_to(source)
+        rejected = propose_learning(
+            self.repo,
+            mission_id=self.mission_id,
+            claim="Symlink aliases cannot launder evidence",
+            evidence=["aliased-evidence.md"],
+            dry_run=True,
+        )
+        self.assertEqual(2, rejected.exit_code)
+        self.assertIn("not independent evidence", rejected.text)
+
+    def test_empty_explicit_values_do_not_fall_back_to_structured_input(self) -> None:
+        structured = self.repo / "proposal-input.yaml"
+        structured.write_text(
+            f"mission_id: {self.mission_id}\n"
+            "claim: File claim\n"
+            "scope: [repository]\n"
+            "evidence: [README.md]\n"
+            "proposed_by: file-author\n"
+        )
+        result = propose_learning(self.repo, input=str(structured), claim="", dry_run=True)
+        self.assertEqual(2, result.exit_code)
+        self.assertIn("requires mission_id and claim", result.text)
+        empty_scope = propose_learning(self.repo, input=str(structured), scope=[], dry_run=True)
+        self.assertEqual(2, empty_scope.exit_code)
+        empty_evidence = propose_learning(self.repo, input=str(structured), evidence=[], dry_run=True)
+        self.assertEqual(2, empty_evidence.exit_code)
+
+    def test_noop_preserves_original_observation_date(self) -> None:
+        options = {
+            "mission_id": self.mission_id,
+            "claim": "Repeated proposals preserve their original observation date",
+            "scope": ["repository"],
+            "evidence": ["README.md"],
+        }
+        created = propose_learning(self.repo, **options)
+        self.assertEqual("2026-07-24", created.data["proposal"]["observed_at"])
+        run("git", "add", ".", cwd=self.repo)
+        run("git", "commit", "-qm", "proposal", cwd=self.repo)
+        previous = os.environ.get("PROJECT_BRAIN_DATE")
+        os.environ["PROJECT_BRAIN_DATE"] = "2026-07-25"
+        try:
+            repeated = propose_learning(self.repo, **options)
+        finally:
+            if previous is None:
+                os.environ.pop("PROJECT_BRAIN_DATE", None)
+            else:
+                os.environ["PROJECT_BRAIN_DATE"] = previous
+        self.assertEqual("no-op", repeated.data["status"])
+        self.assertEqual("2026-07-24", repeated.data["proposal"]["observed_at"])
+
+    def test_mission_symlink_cannot_escape_missions_directory(self) -> None:
+        outside = self.repo / "outside-mission.yaml"
+        mission = self.repo / ".project-brain/missions" / f"{self.mission_id}.yaml"
+        outside.write_text(mission.read_text().replace(self.mission_id, "symlink-mission", 1))
+        alias = self.repo / ".project-brain/missions/symlink.yaml"
+        alias.symlink_to(outside)
+        rejected = propose_learning(
+            self.repo,
+            mission_id="symlink-mission",
+            claim="Mission symlinks cannot escape",
+            evidence=["README.md"],
+            dry_run=True,
+        )
+        self.assertEqual(2, rejected.exit_code)
+        self.assertIn("escapes the missions directory", rejected.text)
 
 
 def _yaml_value(text: str, key: str) -> str:

@@ -66,8 +66,16 @@ class StandaloneArchitectureTests(unittest.TestCase):
             repeated = run(sys.executable, installer, "install", "--target", str(target))
             self.assertIn("already installed", repeated.stdout)
             run(sys.executable, installer, "validate", "--target", str(target))
+            self.assertFalse((target / "scripts").exists())
+            self.assertFalse((target / "assets").exists())
+            self.assertIn("project-brain", (target / "SKILL.md").read_text())
             run(sys.executable, installer, "uninstall", "--target", str(target))
             self.assertFalse(target.exists())
+
+    def test_skill_adapter_and_source_launcher_use_same_package_cli(self) -> None:
+        package = run("project-brain", "doctor", "--format", "json")
+        source = run(sys.executable, str(ROOT / "scripts/project_brain.py"), "doctor", "--format", "json")
+        self.assertEqual(json.loads(package.stdout), json.loads(source.stdout))
 
     def test_disposable_consumer_fixtures(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
