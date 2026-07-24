@@ -14,7 +14,8 @@ Observed at `5674e9b0af66b5d70b100a8df87ead2dc751b68a` on 2026-07-24.
 - Compatibility target: Python 3.8+, package 0.3.x, skill adapter 0.3.x, and schema 2.5.x. Evidence: `pyproject.toml`, `project-brain doctor`.
 - Tests run with `python3 -m unittest discover -s tests -p 'test_*.py'`; skill validation uses the official Codex quick validator through `scripts/install_skill.py validate`.
 - Release constraint: prepare locally only; do not publish, tag, push, release, or modify real consumer repositories during the 0.3.0 milestone.
+- The 0.3.0 self-hosted proposal mission passed 56 tests and a two-cycle independent review with zero unresolved blockers. Its lesson remains proposed with a mission-local recommendation. Evidence: `.project-brain/missions/2026-07-24-harden-document-and-independently-review-the-standalone-proposal.yaml`, `.project-brain/evaluations/lesson-9fb80a9be1ef-evaluation.yaml`.
 
 ## Uncertainties
 
-- Clean isolated-environment installation and final self-hosted mission evidence remain to be recorded for 0.3.0 release readiness.
+- None recorded for local 0.3.0 readiness; publication and consumer integration remain intentionally unperformed.
