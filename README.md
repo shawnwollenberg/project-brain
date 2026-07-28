@@ -4,6 +4,8 @@ Project Brain is a Git-native, evidence-backed, provider-neutral system for pres
 
 It keeps knowledge readable as Markdown and YAML, validates machine contracts with JSON Schema, builds small deterministic context packs, and requires human approval before proposed knowledge becomes confirmed knowledge.
 
+Website: [brain.wallyweb.com](https://brain.wallyweb.com)
+
 Project Brain is not a conversational-memory database, transcript or chain-of-thought archive, vector database, autonomous knowledge authority, or replacement for Git, documentation, tests, and review.
 
 ## Install
